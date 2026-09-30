@@ -30,7 +30,7 @@ def plot_corrected_annotated_timeseries(df, title, filename, is_normal=False):
     
     # 정상 데이터일 경우에만 수정된 유휴 구간(가장자리 스파이크 제외) 필터링
     if is_normal:
-        idle_mask = (df['TimeStamp'] >= '2022-07-12 00:59:47.000') & (df['TimeStamp'] <= '2022-07-12 01:11:37.000')
+        idle_mask = (df['TimeStamp'] >= '2022-07-12 00:59:53.992') & (df['TimeStamp'] <= '2022-07-12 01:11:32.588')
         df_idle = df[idle_mask]
 
     for i, col in enumerate(cols):
