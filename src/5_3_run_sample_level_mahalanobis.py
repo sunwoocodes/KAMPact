@@ -12,7 +12,7 @@
 단점
   - 윈도우 통계가 없어 정보량이 적음 (raw_diff_roll3 로 일부 보완)
 
-평가 방식은 6번(교차검증 CV)과 동일하다.
+평가 방식은 5_2번(교차검증 CV)과 동일하다.
   - fault / normal / idle 세그먼트를 각각 섞어 fold 배정 (누수 없음)
   - fold i = test, fold (i+1)%K = val, 나머지 = train
   - 학습: train fold 의 비-Idle 정상 샘플만
@@ -24,12 +24,12 @@
       W=1.0 윈도우 모델의 "delay ≈ 1.0s" 는 이 정의로는 약 0.9s(샘플 10개) 에 해당한다.
 
 사용 예:
-    python 7_run_sample_level_mahalanobis.py \\
+    python ./src/5_3_run_sample_level_mahalanobis.py \\
         --normal-path data/press_data_normal_with_idle.csv \\
         --fault-path  data/outlier_data.csv
 
     # 평활 길이 여러 개 비교
-    python 7_run_sample_level_mahalanobis.py --agg-k 1 3 5 10
+    python ./src/5_3_run_sample_level_mahalanobis.py --agg-k 1 3 5 10
 """
 
 from __future__ import annotations
@@ -791,7 +791,7 @@ def main() -> None:
 
     p.add_argument(
         "--output-dir",
-        default="outputs/sample_level_cv",
+        default="outputs/5_3_sample_level_cv",
     )
 
     p.add_argument(

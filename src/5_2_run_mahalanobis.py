@@ -38,13 +38,13 @@ Mahalanobis 이벤트 단위 교차검증 (Group K-Fold)
 
 사용 예:
     # 단일 스케일 (기존 방식)
-    python 6_run_mahalanobis_cv.py --inputs result/modeling_dataset_1.0_0.1
+    python ./src/5_2_run_mahalanobis.py --inputs result/modeling_dataset_1.0_0.1
 
     # 다중 스케일: 1.0s + 0.5s
-    python 6_run_mahalanobis_cv.py --multiscale result/modeling_dataset_1.0_0.1 result/modeling_dataset_0.5_0.1
+    python ./src/5_2_run_mahalanobis.py --multiscale result/modeling_dataset_1.0_0.1 result/modeling_dataset_0.5_0.1
 
     # 단일 스케일과 다중 스케일을 함께 비교
-    python 6_run_mahalanobis_cv.py \\
+    python ./src/5_2_run_mahalanobis.py \\
         --inputs result/modeling_dataset_1.0_0.1 \\
         --multiscale result/modeling_dataset_1.0_0.1 result/modeling_dataset_0.5_0.1
 """
@@ -1115,7 +1115,7 @@ def main() -> None:
 
     parser.add_argument(
         "--output-dir",
-        default="outputs/mahalanobis_cv",
+        default="outputs/5_2_mahalanobis_cv",
     )
 
     parser.add_argument("--n-splits", type=int, default=4)
