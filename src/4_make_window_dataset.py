@@ -12,7 +12,7 @@ from tqdm import tqdm
 NORMAL_PATH = "data/press_data_normal_with_idle.csv"
 FAULT_PATH = "data/outlier_data.csv"
 
-OUTPUT_DIR = "result/modeling_dataset"
+OUTPUT_DIR = "result/modeling_dataset_0.8_0.1"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # 컬럼
@@ -34,12 +34,21 @@ SENSOR_COLS = [
 GAP_THRESHOLD_SEC = 0.5
 
 # Window 설정
-WINDOW_SEC = 1.0
-STEP_SEC = 0.5
+WINDOW_SEC = 0.8
+STEP_SEC = 0.1  
 
 # 최소 샘플 수
-# 정상적으로 0.1초 sampling이면 약 10개가 들어감
-MIN_SAMPLES = 8
+# 0.1초 sampling 기준 window에 들어가는 이상적 샘플 수의 80%
+# (W=1.0 -> 8, W=0.9 -> 7, W=0.8 -> 6)
+# W가 바뀌어도 "샘플 1개 누락"에 대한 여유가 동일하도록 W에 비례시킴
+SAMPLING_SEC = 0.1
+MIN_SAMPLE_RATIO = 0.8
+MIN_SAMPLES = max(2, int(WINDOW_SEC / SAMPLING_SEC * MIN_SAMPLE_RATIO))
+
+# 공통 평가 이벤트 기준 (비교하려는 W 중 최댓값)
+# fault segment 길이가 이 값보다 짧은 이벤트는
+# 어떤 W 설정에서도 안정적으로 평가할 수 없으므로 split에서 제외
+COMMON_EVENT_MIN_DURATION = 1.0
 
 # ------------------------------------------------------------
 # Segment split
@@ -220,6 +229,15 @@ def create_segment_manifest(df):
             state_ratio >= 0.5
         )
 
+        # 실제 fault 상태 진입 시점
+        # 이 데이터에서 Equipment_state >= 1이 처음 나타나는 timestamp
+        fault_rows = group[group[STATE_COL] >= 1]
+
+        if not fault_rows.empty:
+            fault_onset_time = fault_rows[TIME_COL].min()
+        else:
+            fault_onset_time = pd.NaT
+
         segments.append({
             "source": group["source"].iloc[0],
             "segment_id": group["segment_id"].iloc[0],
@@ -232,6 +250,7 @@ def create_segment_manifest(df):
             "idle_ratio": idle_ratio,
             "idle_majority": idle_majority,
             "label": label,
+            "fault_onset_time": fault_onset_time,
         })
 
     segments = pd.DataFrame(
@@ -270,8 +289,31 @@ def assign_segment_splits(
         "split"
     ] = "EXCLUDED_IDLE"
 
+    # --------------------------------------------------------
+    # 너무 짧은 fault 이벤트 제외
+    #
+    # segment 길이 < COMMON_EVENT_MIN_DURATION 이면
+    # W가 커질수록 window가 0개가 되어 이벤트가 조용히 사라짐.
+    # 설정 간 비교가 가능하도록 split 단계에서 미리 제외.
+    # --------------------------------------------------------
+
+    short_fault_mask = (
+        (manifest["source"] == "fault")
+        & manifest["fault_onset_time"].notna()
+        & (
+            manifest["duration_sec"]
+            < COMMON_EVENT_MIN_DURATION
+        )
+        & ~idle_mask
+    )
+
+    manifest.loc[
+        short_fault_mask,
+        "split"
+    ] = "EXCLUDED_SHORT"
+
     eligible = manifest.loc[
-        ~idle_mask
+        ~idle_mask & ~short_fault_mask
     ].copy()
 
     # --------------------------------------------------------
@@ -442,7 +484,8 @@ def safe_corr(x, y):
 def extract_features(
     window,
     window_start,
-    window_end
+    window_end,
+    fault_onset_time
 ):
 
     features = {}
@@ -453,6 +496,7 @@ def extract_features(
 
     features["window_start"] = window_start
     features["window_end"] = window_end
+    features["fault_onset_time"] = fault_onset_time
     features["sample_count"] = len(window)
 
     actual_duration = (
@@ -621,6 +665,23 @@ def generate_segment_windows(
     if len(segment) < MIN_SAMPLES:
         return []
 
+    # --------------------------------------------------------
+    # 실제 fault onset 계산
+    # --------------------------------------------------------
+    state_numeric = pd.to_numeric(
+        segment[STATE_COL],
+        errors="coerce"
+    )
+
+    fault_rows = segment[
+        state_numeric >= 1
+    ]
+
+    if not fault_rows.empty:
+        fault_onset_time = fault_rows[TIME_COL].min()
+    else:
+        fault_onset_time = pd.NaT
+
     # numpy timestamp
     timestamps_ns = (
         segment[TIME_COL]
@@ -693,7 +754,8 @@ def generate_segment_windows(
         features = extract_features(
             window,
             window_start,
-            window_end
+            window_end,
+            fault_onset_time
         )
 
         # Metadata
@@ -770,8 +832,8 @@ def create_windows(
             group_id
         ]
 
-        # Idle segment는 모델 데이터에서 제외
-        if split_name == "EXCLUDED_IDLE":
+        # Idle / 짧은 fault segment는 모델 데이터에서 제외
+        if str(split_name).startswith("EXCLUDED"):
             continue
 
         windows = generate_segment_windows(
@@ -907,6 +969,7 @@ def validate_windows(
         if c not in [
             "window_start",
             "window_end",
+            "fault_onset_time",
             "source",
             "segment_id",
             "group_id",
@@ -939,6 +1002,32 @@ def validate_windows(
         print(
             nan_counts.to_string()
         )
+
+    # --------------------------------------------------------
+    # Fault onset 확인
+    # --------------------------------------------------------
+
+    fault_windows = windows_df[
+        windows_df["label"] == 1
+    ]
+
+    print()
+    print("Fault onset timestamp 확인")
+
+    if len(fault_windows) == 0:
+        print("Fault window 없음")
+    else:
+        onset_missing = fault_windows["fault_onset_time"].isna().sum()
+        onset_events = fault_windows.loc[
+            fault_windows["fault_onset_time"].notna(),
+            "group_id"
+        ].nunique()
+        total_events = fault_windows["group_id"].nunique()
+
+        print(f"Fault window : {len(fault_windows):,}")
+        print(f"Fault event  : {total_events:,}")
+        print(f"Onset event  : {onset_events:,}")
+        print(f"Onset 누락   : {onset_missing:,}")
 
     # --------------------------------------------------------
     # 실제 segment leakage 확인
@@ -1077,6 +1166,81 @@ def main():
     )
 
     # ========================================================
+    # 5-1. Event manifest (W와 무관한 정답 이벤트 목록)
+    # ========================================================
+
+    event_manifest = manifest[
+        (manifest["source"] == "fault")
+        & manifest["fault_onset_time"].notna()
+        & (manifest["split"] != "EXCLUDED_IDLE")
+    ].copy()
+
+    event_manifest["evaluable_common"] = (
+        event_manifest["duration_sec"]
+        >= COMMON_EVENT_MIN_DURATION
+    )
+
+    event_manifest["evaluable_this_W"] = (
+        event_manifest["duration_sec"]
+        >= WINDOW_SEC
+    )
+
+    event_manifest_path = os.path.join(
+        OUTPUT_DIR,
+        "event_manifest.csv"
+    )
+
+    event_manifest.to_csv(
+        event_manifest_path,
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    print()
+    print("=" * 80)
+    print("EVENT MANIFEST")
+    print("=" * 80)
+    print(
+        f"전체 이벤트            : {len(event_manifest)}"
+    )
+    print(
+        f"공통 평가 가능 (>= {COMMON_EVENT_MIN_DURATION:.1f}s) : "
+        f"{int(event_manifest['evaluable_common'].sum())}"
+    )
+    print(
+        f"이 W에서 평가 가능     : "
+        f"{int(event_manifest['evaluable_this_W'].sum())}"
+    )
+
+    excluded_short = event_manifest[
+        ~event_manifest["evaluable_common"]
+    ]
+
+    if len(excluded_short) > 0:
+        print()
+        print("제외된 짧은 이벤트 (EXCLUDED_SHORT)")
+        print(
+            excluded_short[
+                [
+                    "group_id",
+                    "duration_sec",
+                    "fault_onset_time"
+                ]
+            ].to_string(index=False)
+        )
+
+    print()
+    print("공통 이벤트의 split 분포")
+    print(
+        event_manifest[
+            event_manifest["evaluable_common"]
+        ]
+        .groupby("split")
+        .size()
+        .to_string()
+    )
+
+    # ========================================================
     # 6. 각 Segment에 split 붙이기
     # ========================================================
 
@@ -1143,6 +1307,7 @@ def main():
     metadata_cols = [
         "window_start",
         "window_end",
+        "fault_onset_time",
         "source",
         "segment_id",
         "group_id",
@@ -1214,6 +1379,44 @@ def main():
     )
 
     # ========================================================
+    # 13-1. 공통 이벤트 소실 검증
+    # ========================================================
+
+    common_groups = set(
+        event_manifest.loc[
+            event_manifest["evaluable_common"],
+            "group_id"
+        ]
+    )
+
+    pos_groups = set(
+        model_windows.loc[
+            model_windows["label"] == 1,
+            "group_id"
+        ]
+    )
+
+    lost_common = sorted(
+        common_groups - pos_groups
+    )
+
+    print()
+    print("=" * 80)
+    print("공통 이벤트 소실 검증")
+    print("=" * 80)
+
+    if len(lost_common) == 0:
+        print(
+            f"✓ 공통 이벤트 {len(common_groups)}개 모두 "
+            f"label=1 window 보유"
+        )
+    else:
+        print(
+            f"[WARNING] label=1 window가 없는 공통 이벤트: "
+            f"{lost_common}"
+        )
+
+    # ========================================================
     # 14. Split별 최종 데이터 수
     # ========================================================
 
@@ -1265,10 +1468,62 @@ def main():
     # 완료
     # ========================================================
 
+    # ========================================================
+    # Fault onset 최종 요약
+    # ========================================================
+
+    fault_model = model_windows[
+        model_windows["label"] == 1
+    ]
+
+    print()
+    print("=" * 80)
+    print("FAULT ONSET SUMMARY")
+    print("=" * 80)
+
+    if len(fault_model) > 0:
+
+        onset_summary = (
+            fault_model[[
+                "group_id",
+                "fault_onset_time"
+            ]]
+            .drop_duplicates("group_id")
+            .sort_values("fault_onset_time")
+        )
+
+        print(
+            f"Fault event : {len(onset_summary):,}"
+        )
+
+        print(
+            onset_summary.to_string(index=False)
+        )
+
+    else:
+
+        print("Fault window가 없습니다.")
+
+    # ========================================================
+    # 완료
+    # ========================================================
+
     print()
     print("=" * 80)
     print("전처리 완료")
     print("=" * 80)
+
+    print(
+        f"Window 설정      : {WINDOW_SEC:.1f}s window / {STEP_SEC:.1f}s step"
+    )
+
+    print(
+        f"MIN_SAMPLES      : {MIN_SAMPLES}"
+    )
+
+    print(
+        f"Event manifest   : {event_manifest_path}"
+    )
 
     print(
         f"Segment manifest : {manifest_path}"

@@ -1,0 +1,2 @@
+﻿f1,precision,recall,normal_false_alarm_rate,tp,fp,tn,fn,event_detection_rate,mean_detection_delay_sec,median_detection_delay_sec,min_detection_delay_sec,max_detection_delay_sec,detected_events,total_events,valid_onset_events,threshold,validation_f1,covariance,threshold_mode,normal_quantile,k_consecutive,train_rows_used,seed
+0.9351851851851852,0.8782608695652174,1.0,0.005559968228752979,101,14,2504,0,1.0,0.8000000000000002,0.8,0.8,0.8,3,3,3,43.33518410614652,0.9513513513513514,ledoitwolf,f1,0.995,1,8098,

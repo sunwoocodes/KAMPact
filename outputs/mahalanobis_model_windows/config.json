@@ -1,0 +1,33 @@
+{
+  "input": "result/modeling_dataset_0.8_0.1/model_windows.csv",
+  "output_dir": "outputs/mahalanobis_model_windows",
+  "covariance": "ledoitwolf",
+  "threshold_mode": "f1",
+  "normal_quantile": 0.995,
+  "k_consecutive": 1,
+  "seeds": 1,
+  "train_fraction": 1.0,
+  "feature_cols": [
+    "AI0_Vibration_mean",
+    "AI0_Vibration_std",
+    "AI0_Vibration_rms",
+    "AI0_Vibration_ptp",
+    "AI0_Vibration_slope",
+    "AI1_Vibration_mean",
+    "AI1_Vibration_std",
+    "AI1_Vibration_rms",
+    "AI1_Vibration_ptp",
+    "AI1_Vibration_slope",
+    "AI2_Current_mean",
+    "AI2_Current_std",
+    "AI2_Current_rms",
+    "AI2_Current_ptp",
+    "AI2_Current_slope",
+    "AI0_AI1_corr"
+  ],
+  "delay_definition": {
+    "detection_delay": "fault_onset_time -> first alarm window_end",
+    "onset_definition": "first timestamp with Equipment_state >= 1 in each fault segment",
+    "transition_window_rule": "A window may start before fault onset, but its window_end must be >= fault onset."
+  }
+}
