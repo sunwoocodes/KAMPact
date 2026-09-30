@@ -1,3 +1,4 @@
+import argparse
 import os
 import numpy as np
 import pandas as pd
@@ -12,8 +13,9 @@ from tqdm import tqdm
 NORMAL_PATH = "data/press_data_normal_with_idle.csv"
 FAULT_PATH = "data/outlier_data.csv"
 
-OUTPUT_DIR = "result/modeling_dataset_0.8_0.1"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# None 이면 result/modeling_dataset_{WINDOW_SEC}_{STEP_SEC} 로 자동 결정
+# (main() 시작 시 configure() 에서 확정되고 폴더가 생성됨)
+OUTPUT_DIR = None
 
 # 컬럼
 TIME_COL = "TimeStamp"
@@ -35,7 +37,7 @@ GAP_THRESHOLD_SEC = 0.5
 
 # Window 설정
 WINDOW_SEC = 0.8
-STEP_SEC = 0.1  
+STEP_SEC = 0.1
 
 # 최소 샘플 수
 # 0.1초 sampling 기준 window에 들어가는 이상적 샘플 수의 80%
@@ -45,10 +47,11 @@ SAMPLING_SEC = 0.1
 MIN_SAMPLE_RATIO = 0.8
 MIN_SAMPLES = max(2, int(WINDOW_SEC / SAMPLING_SEC * MIN_SAMPLE_RATIO))
 
-# 공통 평가 이벤트 기준 (비교하려는 W 중 최댓값)
-# fault segment 길이가 이 값보다 짧은 이벤트는
-# 어떤 W 설정에서도 안정적으로 평가할 수 없으므로 split에서 제외
-COMMON_EVENT_MIN_DURATION = 1.0
+# 이 값보다 짧은 fault segment 는 split 에서 제외(EXCLUDED_SHORT)
+#   None      : WINDOW_SEC 사용 (해당 W 로 window 가 만들어지는 이벤트는 모두 사용)
+#   숫자(1.0) : 여러 W 의 이벤트 집합을 고정해서 단일 스케일끼리 비교할 때
+# 다중 스케일 평가(6번 --multiscale)에서는 None(기본값)을 권장
+COMMON_EVENT_MIN_DURATION = None
 
 # ------------------------------------------------------------
 # Segment split
@@ -832,9 +835,13 @@ def create_windows(
             group_id
         ]
 
-        # Idle / 짧은 fault segment는 모델 데이터에서 제외
-        if str(split_name).startswith("EXCLUDED"):
+        # 짧은 fault segment 는 제외
+        if split_name == "EXCLUDED_SHORT":
             continue
+
+        # Idle segment 는 학습/평가용 model_windows 에는 넣지 않지만,
+        # "Idle 상태에서 오탐이 나는지" 측정하기 위해 window 는 생성한다.
+        # (split="EXCLUDED_IDLE" -> main 에서 idle_windows.csv 로 분리 저장)
 
         windows = generate_segment_windows(
             segment,
@@ -1077,7 +1084,77 @@ def validate_windows(
 # Main
 # ============================================================
 
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description="Window feature dataset 생성"
+    )
+
+    parser.add_argument("--normal-path", default=NORMAL_PATH)
+    parser.add_argument("--fault-path", default=FAULT_PATH)
+    parser.add_argument("--window-sec", type=float, default=WINDOW_SEC)
+    parser.add_argument("--step-sec", type=float, default=STEP_SEC)
+
+    parser.add_argument(
+        "--min-event-duration",
+        type=float,
+        default=None,
+        help=(
+            "이보다 짧은 fault segment 제외. "
+            "기본값(None)은 window-sec 과 동일."
+        ),
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="기본값: result/modeling_dataset_{W}_{STEP}",
+    )
+
+    return parser.parse_args()
+
+
+def configure(args):
+
+    global NORMAL_PATH, FAULT_PATH
+    global WINDOW_SEC, STEP_SEC, MIN_SAMPLES
+    global COMMON_EVENT_MIN_DURATION, OUTPUT_DIR
+
+    NORMAL_PATH = args.normal_path
+    FAULT_PATH = args.fault_path
+
+    WINDOW_SEC = float(args.window_sec)
+    STEP_SEC = float(args.step_sec)
+
+    MIN_SAMPLES = max(
+        2,
+        int(WINDOW_SEC / SAMPLING_SEC * MIN_SAMPLE_RATIO)
+    )
+
+    COMMON_EVENT_MIN_DURATION = (
+        float(args.min_event_duration)
+        if args.min_event_duration is not None
+        else WINDOW_SEC
+    )
+
+    OUTPUT_DIR = (
+        args.output_dir
+        or f"result/modeling_dataset_{WINDOW_SEC}_{STEP_SEC}"
+    )
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    print(
+        f"[CONFIG] W={WINDOW_SEC}s step={STEP_SEC}s "
+        f"MIN_SAMPLES={MIN_SAMPLES} "
+        f"min_event_duration={COMMON_EVENT_MIN_DURATION}s "
+        f"-> {OUTPUT_DIR}"
+    )
+
+
 def main():
+
+    configure(parse_args())
 
     # ========================================================
     # 1. 데이터 로드
@@ -1283,9 +1360,18 @@ def main():
     # 9. Idle window 제거
     # ========================================================
 
+    idle_windows = (
+        windows_df[
+            windows_df["split"] == "EXCLUDED_IDLE"
+        ]
+        .copy()
+        .reset_index(drop=True)
+    )
+
     model_windows = (
         windows_df[
-            windows_df["idle_majority"] == 0
+            (windows_df["idle_majority"] == 0)
+            & (windows_df["split"] != "EXCLUDED_IDLE")
         ]
         .copy()
         .reset_index(drop=True)
@@ -1345,6 +1431,38 @@ def main():
     print(
         f"Feature NaN/Inf 제거 : "
         f"{removed_rows:,} windows"
+    )
+
+    # --------------------------------------------------------
+    # Idle window 저장 (Idle 오탐 측정용, 학습에는 사용하지 않음)
+    # --------------------------------------------------------
+
+    idle_windows = idle_windows.replace(
+        [np.inf, -np.inf],
+        np.nan
+    )
+
+    if len(idle_windows) > 0:
+        idle_windows = (
+            idle_windows
+            .dropna(subset=feature_cols)
+            .reset_index(drop=True)
+        )
+
+    idle_path = os.path.join(
+        OUTPUT_DIR,
+        "idle_windows.csv"
+    )
+
+    idle_windows.to_csv(
+        idle_path,
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    print(
+        f"Idle window (오탐 측정용) : "
+        f"{len(idle_windows):,} -> {idle_path}"
     )
 
     # ========================================================
