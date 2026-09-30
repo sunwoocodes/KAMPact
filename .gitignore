@@ -52,6 +52,7 @@ data/*.csv
 data/**/*.csv
 result/*.csv
 result/**/*.csv
+result/**/**/*.csv
 
 # 기타 대용량 데이터 파일
 data/*.parquet
