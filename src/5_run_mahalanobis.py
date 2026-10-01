@@ -955,6 +955,28 @@ def run_once(
     )
 
     # --------------------------------------------------------
+    # Validation score statistics for threshold audit
+    # --------------------------------------------------------
+
+    val_labels = val["label"].astype(int).to_numpy()
+
+    val_finite_mask = np.isfinite(val_scores)
+    val_normal_mask = val_labels == 0
+    val_fault_mask = val_labels == 1
+
+    validation_rows = int(len(val))
+    validation_normal_rows = int(val_normal_mask.sum())
+    validation_fault_rows = int(val_fault_mask.sum())
+
+    validation_finite_scores = int(val_finite_mask.sum())
+    validation_normal_finite_scores = int(
+        (val_normal_mask & val_finite_mask).sum()
+    )
+    validation_fault_finite_scores = int(
+        (val_fault_mask & val_finite_mask).sum()
+    )
+
+    # --------------------------------------------------------
     # Threshold
     # --------------------------------------------------------
 
@@ -1066,33 +1088,26 @@ def run_once(
 
     metrics.update({
 
-        "threshold": float(
-            threshold
-        ),
+        "threshold": float(threshold),
 
-        "validation_f1": float(
-            val_f1
-        ),
+        "validation_f1": float(val_f1),
 
-        "covariance": (
-            covariance
-        ),
+        "validation_rows": validation_rows,
+        "validation_normal_rows": validation_normal_rows,
+        "validation_fault_rows": validation_fault_rows,
+        "validation_finite_scores": validation_finite_scores,
+        "validation_normal_finite_scores": validation_normal_finite_scores,
+        "validation_fault_finite_scores": validation_fault_finite_scores,
 
-        "threshold_mode": (
-            threshold_mode
-        ),
+        "covariance": covariance,
 
-        "normal_quantile": float(
-            normal_quantile
-        ),
+        "threshold_mode": threshold_mode,
 
-        "k_consecutive": int(
-            k_consecutive
-        ),
+        "normal_quantile": float(normal_quantile),
 
-        "train_rows_used": int(
-            len(train)
-        ),
+        "k_consecutive": int(k_consecutive),
+
+        "train_rows_used": int(len(train)),
 
         "seed": train_seed,
     })

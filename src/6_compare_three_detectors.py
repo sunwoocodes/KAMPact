@@ -427,7 +427,7 @@ def make_sample_alarm_for_fold(
     agg_how: str,
     threshold_mode: str,
     normal_quantile: float,
-) -> tuple[np.ndarray, float]:
+) -> tuple[np.ndarray, float, dict]:
 
     kinds = raw["kind"].to_numpy()
     gids = raw["group_id"].astype(str).to_numpy()
@@ -443,6 +443,30 @@ def make_sample_alarm_for_fold(
     raw_scores = score_fn(x_all)
     smooth = causal_smooth(raw_scores, list(group_index.values()), agg_k, agg_how)
 
+    val_finite_mask = np.isfinite(smooth[val_mask])
+
+    val_labels = labels[val_mask]
+
+    validation_rows = int(val_mask.sum())
+    validation_normal_rows = int(
+        (val_labels == 0).sum()
+    )
+    validation_fault_rows = int(
+        (val_labels == 1).sum()
+    )
+
+    validation_finite_scores = int(
+        val_finite_mask.sum()
+    )
+
+    validation_normal_finite_scores = int(
+        ((val_labels == 0) & val_finite_mask).sum()
+    )
+
+    validation_fault_finite_scores = int(
+        ((val_labels == 1) & val_finite_mask).sum()
+    )
+
     if threshold_mode == "normal_quantile":
         thr = choose_sample_threshold_quantile(labels[val_mask], smooth[val_mask], normal_quantile)
     else:
@@ -453,7 +477,16 @@ def make_sample_alarm_for_fold(
     out = np.zeros(len(raw), dtype=bool)
     out[test_mask] = alarm[test_mask]
 
-    return out, thr
+    info = {
+        "validation_rows": validation_rows,
+        "validation_normal_rows": validation_normal_rows,
+        "validation_fault_rows": validation_fault_rows,
+        "validation_finite_scores": validation_finite_scores,
+        "validation_normal_finite_scores": validation_normal_finite_scores,
+        "validation_fault_finite_scores": validation_fault_finite_scores,
+    }
+
+    return out, thr, info
 
 
 # ============================================================
@@ -511,12 +544,32 @@ def run_repeat(
             else:
                 fold_half |= alarm_raw
 
-            threshold_log.append({"fold": fold, "scale": sc.name, "threshold": metrics["threshold"]})
+            threshold_log.append({
+                "fold": fold,
+                "scale": sc.name,
+                "threshold": metrics["threshold"],
+                "threshold_mode": window_threshold_mode,
+                "normal_quantile": window_quantile,
+                "covariance": window_covariance,
+                "k_consecutive": window_k,
+
+                "validation_rows": metrics.get("validation_rows"),
+                "validation_normal_rows": metrics.get("validation_normal_rows"),
+                "validation_fault_rows": metrics.get("validation_fault_rows"),
+                "validation_finite_scores": metrics.get("validation_finite_scores"),
+                "validation_normal_finite_scores": metrics.get(
+                    "validation_normal_finite_scores"
+                ),
+                "validation_fault_finite_scores": metrics.get(
+                    "validation_fault_finite_scores"
+                ),
+                "validation_f1": metrics.get("validation_f1"),
+            })
 
         all_one |= fold_one
         all_half |= fold_half
 
-        sample_alarm, sample_thr = make_sample_alarm_for_fold(
+        sample_alarm, sample_thr, sample_info = make_sample_alarm_for_fold(
             raw=raw,
             x_all=x_sample,
             group_index=group_index,
@@ -531,7 +584,19 @@ def run_repeat(
             normal_quantile=sample_quantile,
         )
         all_sample |= sample_alarm
-        threshold_log.append({"fold": fold, "scale": "sample", "threshold": sample_thr})
+        threshold_log.append({
+            "fold": fold,
+            "scale": "sample",
+            "threshold": sample_thr,
+            "threshold_mode": sample_threshold_mode,
+            "normal_quantile": sample_quantile,
+            "covariance": sample_covariance,
+            "agg_k": sample_agg_k,
+            "agg_how": sample_agg_how,
+            "feature_set": sample_feature_set,
+
+            **sample_info,
+        })
 
     # ========================================================
     # 앙상블 조합 구성 (Persistence & Temporal Tolerant)
@@ -760,10 +825,42 @@ def main():
     # 출력 포맷 맞추기 (float 소수점 3자리)
     print(fault_stats.to_string(index=False, float_format="%.3f"))
 
-    results.to_csv(output_dir / "ensemble_repeat_results.csv", index=False, encoding="utf-8-sig")
-    summary.to_csv(output_dir / "ensemble_summary.csv", index=False, encoding="utf-8-sig")
-    events_all.to_csv(output_dir / "ensemble_event_details.csv", index=False, encoding="utf-8-sig")
+    results.to_csv(
+        output_dir / "ensemble_repeat_results.csv",
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    summary.to_csv(
+        output_dir / "ensemble_summary.csv",
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    events_all.to_csv(
+        output_dir / "ensemble_event_details.csv",
+        index=False,
+        encoding="utf-8-sig"
+    )
     print(f"\n저장 완료: {output_dir / 'ensemble_event_details.csv'}")
+
+    thresholds_all = pd.concat(
+        all_thresholds,
+        ignore_index=True
+    )
+
+    thresholds_all.to_csv(
+        output_dir / "ensemble_threshold_log.csv",
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    print(
+        f"threshold 로그 저장 완료: "
+        f"{output_dir / 'ensemble_threshold_log.csv'}"
+    )
 
 if __name__ == "__main__":
     main()
+
+# python src/6_compare_three_detectors.py --normal-path data/press_data_normal_with_idle.csv --fault-path data/outlier_data.csv --window-1.0 result/modeling_dataset_1.0_0.1 --window-0.5 result/modeling_dataset_0.5_0.1 --n-splits 5 --repeats 5 --seed 0 --window-threshold-mode normal_quantile --window-quantile 0.9999 --window-k 2 --window-covariance ledoitwolf --sample-threshold-mode normal_quantile --sample-quantile 0.9999 --sample-agg-k 3 --sample-agg mean --sample-feature-set raw_diff --sample-covariance ledoitwolf

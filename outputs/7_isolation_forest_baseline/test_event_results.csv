@@ -1,0 +1,4 @@
+﻿group_id,fault_onset_time,detected,alarm_window_start,alarm_window_end,detection_delay_sec,note
+fault_11,2022-07-17 10:52:38.172,True,2022-07-17 10:52:38.172,2022-07-17 10:52:39.172,1.0,detected
+fault_16,2022-07-17 10:53:18.444,True,2022-07-17 10:53:18.444,2022-07-17 10:53:19.444,1.0,detected
+fault_8,2022-07-17 10:52:12.567,True,2022-07-17 10:52:13.367,2022-07-17 10:52:14.367,1.8,detected

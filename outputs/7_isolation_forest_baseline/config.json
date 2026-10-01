@@ -1,0 +1,31 @@
+{
+  "input": "result/modeling_dataset_1.0_0.1/model_windows.csv",
+  "output_dir": "outputs/7_isolation_forest_baseline",
+  "n_estimators": 300,
+  "max_samples": "auto",
+  "max_features": 1.0,
+  "contamination": "auto",
+  "threshold_mode": "f1",
+  "normal_quantile": 0.995,
+  "k_consecutive": 1,
+  "seeds": 5,
+  "seed_start": 42,
+  "feature_cols": [
+    "AI0_Vibration_mean",
+    "AI0_Vibration_std",
+    "AI0_Vibration_rms",
+    "AI0_Vibration_ptp",
+    "AI0_Vibration_slope",
+    "AI1_Vibration_mean",
+    "AI1_Vibration_std",
+    "AI1_Vibration_rms",
+    "AI1_Vibration_ptp",
+    "AI1_Vibration_slope",
+    "AI2_Current_mean",
+    "AI2_Current_std",
+    "AI2_Current_rms",
+    "AI2_Current_ptp",
+    "AI2_Current_slope",
+    "AI0_AI1_corr"
+  ]
+}
