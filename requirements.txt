@@ -1,6 +1,5 @@
 # KAMPact
-
-# Python 3.11+ recommended
+# Tested with Python 3.11
 
 numpy>=1.26,<3
 pandas>=2.2,<3

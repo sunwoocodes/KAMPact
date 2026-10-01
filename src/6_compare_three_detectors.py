@@ -1,17 +1,14 @@
 """
-KAMPact - 3개 이상탐지기 통합 비교 (Persistence & Temporal Ensemble 확장)
+KAMPact - 3개 이상탐지기 통합 비교 (Persistence & 상세 Fault 추적)
 -------------------------------------------------------------------------
 비교 대상
   1) 1.0s window Mahalanobis (Causal Shifted)
   2) 0.5s window Mahalanobis (Causal Shifted)
   3) sample-level causal Mahalanobis
 
-앙상블 및 후처리 비교
-  - OR_3 (Baseline)
-  - OR_3_P2 / OR_3_P3 (Group-aware Persistence)
-  - 2of3 (Exact timestamp)
-  - 2of3_tol3 (Temporal tolerance 2-of-3 within 3 samples)
-  - OR_3_sample_corroborated (Sample 단독 경보 억제)
+추가 분석:
+  - segment별 탐지율 및 delay 상세 로깅
+  - OR_3_P2 모델의 Missed Fault 집중 분석
 """
 
 from __future__ import annotations
@@ -282,7 +279,6 @@ def apply_window_alarm_to_raw(raw: pd.DataFrame, test_work: pd.DataFrame, alarm_
         start = np.datetime64(row["window_start"])
         end = np.datetime64(row["window_end"])
 
-        # 판정 시점(window_end) 이후로 윈도우 크기만큼 알람 구간을 사후 매핑 (Causal Shift)
         window_duration = end - start
         shifted_start = start + window_duration
         shifted_end = end + window_duration
@@ -298,21 +294,18 @@ def apply_window_alarm_to_raw(raw: pd.DataFrame, test_work: pd.DataFrame, alarm_
 # ============================================================
 
 def apply_group_persistence(alarm: np.ndarray, group_positions: list[np.ndarray], p: int) -> np.ndarray:
-    """group_id 경계를 넘지 않고 연속 p개 sample 알람이 유지될 때만 True 반환"""
     if p <= 1:
         return alarm.copy()
 
     out = np.zeros_like(alarm, dtype=bool)
     for idx in group_positions:
         s = pd.Series(alarm[idx].astype(int))
-        # 각 그룹별 인덱스 위치(idx)에 직접 계산 결과 덮어쓰기 (Index Scrambling 원천 차단)
         roll_sum = s.rolling(p, min_periods=p).sum().fillna(0).to_numpy()
         out[idx] = (roll_sum == p)
     return out
 
 
 def apply_temporal_tolerance(alarm: np.ndarray, group_positions: list[np.ndarray], window_samples: int) -> np.ndarray:
-    """최근 window_samples 내에 알람이 한 번이라도 있었는지 확장 (Lookback tolerance)"""
     if window_samples <= 1:
         return alarm.copy()
 
@@ -413,6 +406,7 @@ def evaluate_raw_alarm(raw: pd.DataFrame, alarm: np.ndarray, fault_groups: set[s
         "idle_fa_cycles": idle_fa_cycles,
         "idle_cycles": n_idle,
         "idle_fa_episodes": int(idle_df["episodes"].sum()) if len(idle_df) else 0,
+        "event_details": events, # 상세 기록 추가 반환
     }
 
 
@@ -488,7 +482,6 @@ def run_repeat(
 
     fold_map = build_fold_map(raw, n_splits=n_splits, seed=seed)
     group_index = raw.groupby("group_id").indices
-    raw_groups = raw["group_id"].astype(str).to_numpy()
 
     all_one = np.zeros(len(raw), dtype=bool)
     all_half = np.zeros(len(raw), dtype=bool)
@@ -543,19 +536,17 @@ def run_repeat(
     # ========================================================
     # 앙상블 조합 구성 (Persistence & Temporal Tolerant)
     # ========================================================
-    group_positions = list(group_index.values())  # 안전한 인덱스 리스트 추출
+    group_positions = list(group_index.values())
 
     or3_base = all_one | all_half | all_sample
     or3_p2 = apply_group_persistence(or3_base, group_positions, p=2)
     or3_p3 = apply_group_persistence(or3_base, group_positions, p=3)
 
-    # 시간 허용 2-of-3 (최근 3샘플/약 0.3초 내에 서로 다른 detector 알람이 2개 이상 발생)
     tol_one = apply_temporal_tolerance(all_one, group_positions, window_samples=3)
     tol_half = apply_temporal_tolerance(all_half, group_positions, window_samples=3)
     tol_sample = apply_temporal_tolerance(all_sample, group_positions, window_samples=3)
     two_of_three_tol3 = (tol_one.astype(int) + tol_half.astype(int) + tol_sample.astype(int)) >= 2
 
-    # Experiment C: Sample 단독 알람은 무시하고, 주변 5샘플 내에 window 알람이 동반될 때만 승인
     window_any = all_one | all_half
     window_tol = apply_temporal_tolerance(window_any, group_positions, window_samples=5)
     sample_corroborated = all_sample & window_tol
@@ -574,16 +565,23 @@ def run_repeat(
     }
 
     rows = []
+    events_list = []
     fault_groups = set(raw.loc[raw["kind"].eq("fault"), "group_id"].astype(str))
     normal_groups = set(raw.loc[raw["kind"].eq("normal"), "group_id"].astype(str))
     idle_groups = set(raw.loc[raw["kind"].eq("idle"), "group_id"].astype(str))
 
     for name, alarm in combos.items():
         m = evaluate_raw_alarm(raw, alarm, fault_groups, normal_groups, idle_groups)
+        # 상세 기록 추출
+        ev_df = m.pop("event_details")
+        ev_df["combo"] = name
+        ev_df["repeat_seed"] = seed
+        events_list.append(ev_df)
+
         m.update({"combo": name, "repeat_seed": seed})
         rows.append(m)
 
-    return pd.DataFrame(rows), pd.DataFrame(threshold_log), combos
+    return pd.DataFrame(rows), pd.DataFrame(threshold_log), combos, pd.concat(events_list, ignore_index=True)
 
 
 # ============================================================
@@ -607,7 +605,7 @@ def main():
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
 
-    # 기준선 파라미터 (Quantile 0.9999 + k=2 + mean3)
+    # 극한 안정형 추천 파라미터 기본 세팅
     parser.add_argument("--window-threshold-mode", choices=["f1", "normal_quantile"], default="normal_quantile")
     parser.add_argument("--window-quantile", type=float, default=0.9999)
     parser.add_argument("--window-k", type=int, default=2)
@@ -652,7 +650,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 90)
-    print("KAMPact - 3 Detector Ensemble (Persistence & Temporal Evaluation)")
+    print("KAMPact - 3 Detector Ensemble (Detailed Fault Tracking)")
     print("=" * 90)
     print(f"Window threshold : {args.window_threshold_mode} ({args.window_quantile}), k={args.window_k}")
     print(f"Sample threshold : {args.sample_threshold_mode} ({args.sample_quantile}), agg={args.sample_agg}{args.sample_agg_k}")
@@ -660,11 +658,12 @@ def main():
 
     all_rows = []
     all_thresholds = []
+    all_event_details = []
 
     for r in tqdm(range(args.repeats), desc="Total Progress (Repeats)"):
         seed = args.seed + r
 
-        repeat_df, threshold_df, _ = run_repeat(
+        repeat_df, threshold_df, _, event_df = run_repeat(
             raw=raw,
             x_sample=x_sample,
             feature_cols=feature_cols,
@@ -685,6 +684,7 @@ def main():
         all_rows.append(repeat_df)
         threshold_df["repeat_seed"] = seed
         all_thresholds.append(threshold_df)
+        all_event_details.append(event_df)
 
         tqdm.write(f"[repeat {r + 1}/{args.repeats}] seed={seed}")
         tqdm.write(
@@ -698,6 +698,7 @@ def main():
         tqdm.write("")
 
     results = pd.concat(all_rows, ignore_index=True)
+    events_all = pd.concat(all_event_details, ignore_index=True)
     summary_rows = []
 
     for combo, g in results.groupby("combo", sort=False):
@@ -733,10 +734,36 @@ def main():
         ].to_string(index=False)
     )
 
+    # -------------------------------------------------------------
+    # OR_3_P2 상세 분석 블록 추가
+    # -------------------------------------------------------------
+    print("\n" + "=" * 105)
+    print("🔍 [OR_3_P2] Fault Segment Detailed Analysis (Across 5 repeats)")
+    print("=" * 105)
+    
+    or3p2_events = events_all[events_all["combo"] == "OR_3_P2"]
+    
+    # 각 group_id(고장 세그먼트)별 통계 집계
+    fault_stats = or3p2_events.groupby("group_id").agg(
+        total_repeats=("detected", "count"),
+        detected_count=("detected", "sum"),
+        avg_delay_sec=("delay_sec", "mean"),
+        n_samples=("n_samples", "mean") # n_samples는 매 반복마다 동일하므로 mean 사용
+    ).reset_index()
+    
+    fault_stats["missed_count"] = fault_stats["total_repeats"] - fault_stats["detected_count"]
+    fault_stats["detection_rate_%"] = (fault_stats["detected_count"] / fault_stats["total_repeats"]) * 100
+
+    # 놓친 횟수(missed_count) 기준 내림차순, 그다음 group_id 오름차순 정렬
+    fault_stats = fault_stats.sort_values(by=["missed_count", "group_id"], ascending=[False, True])
+
+    # 출력 포맷 맞추기 (float 소수점 3자리)
+    print(fault_stats.to_string(index=False, float_format="%.3f"))
+
     results.to_csv(output_dir / "ensemble_repeat_results.csv", index=False, encoding="utf-8-sig")
     summary.to_csv(output_dir / "ensemble_summary.csv", index=False, encoding="utf-8-sig")
-    print(f"\n저장 완료: {output_dir / 'ensemble_summary.csv'}")
-
+    events_all.to_csv(output_dir / "ensemble_event_details.csv", index=False, encoding="utf-8-sig")
+    print(f"\n저장 완료: {output_dir / 'ensemble_event_details.csv'}")
 
 if __name__ == "__main__":
     main()
