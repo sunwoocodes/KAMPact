@@ -1,0 +1,77 @@
+KAMPact - Variable Effect & Interaction Analysis
+================================================================================
+
+[1] Normal vs Fault
+--------------------------------------------------------------------------------
+Window scale: 0.5s
+Normal windows: 14,467
+Fault windows : 499
+
+Top effects:
+AI0_Vibration_rms ↑ (effect=+2.30), AI0_AI1_corr ↓ (effect=-1.43), AI0_Vibration_std ↑ (effect=+0.74), AI1_Vibration_rms ↑ (effect=+0.70), AI0_Vibration_ptp ↑ (effect=+0.67)
+
+[2] Normal vs FP
+--------------------------------------------------------------------------------
+Window scale: 1.0s
+Normal windows: 12,147
+FP windows    : 132
+
+Top effects:
+AI0_Vibration_mean ↑ (effect=+2.18), AI0_Vibration_rms ↑ (effect=+1.74), AI0_Vibration_std ↑ (effect=+1.42), AI0_AI1_corr ↓ (effect=-1.33), AI0_Vibration_ptp ↑ (effect=+1.28)
+
+[3] Stable Detected vs Any-Miss Fault
+--------------------------------------------------------------------------------
+Window scale: 0.5s
+Comparison unit: event-level feature median
+Stable detected events in FN summary: 19
+Stable detected events with feature rows: 17
+Any-miss events in FN summary: 2
+Any-miss events with feature rows: 1
+
+Top effects:
+AI1_Vibration_slope ↓ (effect=-8.05), AI2_Current_slope ↑ (effect=+5.17), AI0_AI1_corr ↑ (effect=+2.44), AI2_Current_rms ↑ (effect=+2.10), AI2_Current_mean ↑ (effect=+1.90)
+
+[4] Sensor Interaction
+--------------------------------------------------------------------------------
+
+Normal
+               AI0_Vibration  AI1_Vibration  AI2_Current
+AI0_Vibration          1.000          0.386        0.004
+AI1_Vibration          0.386          1.000        0.000
+AI2_Current            0.004          0.000        1.000
+
+Fault
+               AI0_Vibration  AI1_Vibration  AI2_Current
+AI0_Vibration          1.000         -0.381        0.012
+AI1_Vibration         -0.381          1.000        0.034
+AI2_Current            0.012          0.034        1.000
+
+FP Context
+               AI0_Vibration  AI1_Vibration  AI2_Current
+AI0_Vibration          1.000          0.255        0.012
+AI1_Vibration          0.255          1.000       -0.016
+AI2_Current            0.012         -0.016        1.000
+
+Any-Miss Fault
+               AI0_Vibration  AI1_Vibration  AI2_Current
+AI0_Vibration          1.000         -0.365       -0.832
+AI1_Vibration         -0.365          1.000       -0.087
+AI2_Current           -0.832         -0.087        1.000
+
+[5] Interpretation
+--------------------------------------------------------------------------------
+Feature effect is descriptive and represents the difference in group medians normalized by the baseline IQR-derived robust scale.
+A large effect does not prove that the feature caused the alarm or fault.
+Detected vs Any-Miss comparison is performed at event level to prevent long fault events from dominating the analysis.
+Very short events without a generated 0.5s window cannot contribute to the 16-feature event comparison.
+
+[6] Output
+--------------------------------------------------------------------------------
+D:\Projects\KAMP\KAMPact2\outputs\10_variable_effect_analysis\variable_effect_summary.csv
+D:\Projects\KAMP\KAMPact2\outputs\10_variable_effect_analysis\event_feature_medians.csv
+D:\Projects\KAMP\KAMPact2\outputs\10_variable_effect_analysis\sensor_correlation_matrix.csv
+D:\Projects\KAMP\KAMPact2\outputs\10_variable_effect_analysis\feature_coverage_report.csv
+D:\Projects\KAMP\KAMPact2\outputs\10_variable_effect_analysis\feature_effect_plot.png
+D:\Projects\KAMP\KAMPact2\outputs\10_variable_effect_analysis\sensor_correlation_heatmap.png
+D:\Projects\KAMP\KAMPact2\outputs\10_variable_effect_analysis\fn_duration_detection.png
+D:\Projects\KAMP\KAMPact2\outputs\10_variable_effect_analysis\analysis_report.txt

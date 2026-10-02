@@ -1,0 +1,4 @@
+﻿duration_bin,n_events,mean_duration_sec,min_duration_sec,max_duration_sec,total_repeat_evaluations,detected_repeat_evaluations,missed_repeat_evaluations,detection_rate_pct
+<0.5s,3,0.26666666666666666,0.2,0.3,15,10,5,66.66666666666667
+0.5-<1.0s,2,0.8,0.7,0.9,10,6,4,60.0
+>=1.0s,16,3.46875,1.4,4.9,80,80,0,100.0

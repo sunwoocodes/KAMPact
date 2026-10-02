@@ -1,0 +1,37 @@
+﻿group,sensor_a,sensor_b,correlation
+Normal,AI0_Vibration,AI0_Vibration,1.0
+Normal,AI0_Vibration,AI1_Vibration,0.3864398364553665
+Normal,AI0_Vibration,AI2_Current,0.004071490109292836
+Normal,AI1_Vibration,AI0_Vibration,0.3864398364553665
+Normal,AI1_Vibration,AI1_Vibration,1.0
+Normal,AI1_Vibration,AI2_Current,0.00044036967330820896
+Normal,AI2_Current,AI0_Vibration,0.004071490109292836
+Normal,AI2_Current,AI1_Vibration,0.00044036967330820896
+Normal,AI2_Current,AI2_Current,1.0
+Fault,AI0_Vibration,AI0_Vibration,1.0
+Fault,AI0_Vibration,AI1_Vibration,-0.38058632726294905
+Fault,AI0_Vibration,AI2_Current,0.011691254984393181
+Fault,AI1_Vibration,AI0_Vibration,-0.38058632726294905
+Fault,AI1_Vibration,AI1_Vibration,1.0
+Fault,AI1_Vibration,AI2_Current,0.03368402264521803
+Fault,AI2_Current,AI0_Vibration,0.011691254984393181
+Fault,AI2_Current,AI1_Vibration,0.03368402264521803
+Fault,AI2_Current,AI2_Current,1.0
+FP Context,AI0_Vibration,AI0_Vibration,1.0
+FP Context,AI0_Vibration,AI1_Vibration,0.2554123313285113
+FP Context,AI0_Vibration,AI2_Current,0.011550924978912342
+FP Context,AI1_Vibration,AI0_Vibration,0.2554123313285113
+FP Context,AI1_Vibration,AI1_Vibration,1.0
+FP Context,AI1_Vibration,AI2_Current,-0.015600346967996651
+FP Context,AI2_Current,AI0_Vibration,0.011550924978912342
+FP Context,AI2_Current,AI1_Vibration,-0.015600346967996651
+FP Context,AI2_Current,AI2_Current,1.0
+Any-Miss Fault,AI0_Vibration,AI0_Vibration,1.0
+Any-Miss Fault,AI0_Vibration,AI1_Vibration,-0.364621974115107
+Any-Miss Fault,AI0_Vibration,AI2_Current,-0.8324722292155735
+Any-Miss Fault,AI1_Vibration,AI0_Vibration,-0.364621974115107
+Any-Miss Fault,AI1_Vibration,AI1_Vibration,1.0
+Any-Miss Fault,AI1_Vibration,AI2_Current,-0.08747823287266908
+Any-Miss Fault,AI2_Current,AI0_Vibration,-0.8324722292155735
+Any-Miss Fault,AI2_Current,AI1_Vibration,-0.08747823287266908
+Any-Miss Fault,AI2_Current,AI2_Current,1.0
