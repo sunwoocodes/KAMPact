@@ -35,6 +35,11 @@ SENSOR_COLS = [
     "AI2_Current",
 ]
 
+# Nominal data sampling interval used only as a fallback when a direct
+# feature-extraction caller omits timestamps. Production fit/stream paths
+# always pass the actual TimeStamp values.
+NOMINAL_SAMPLE_SEC = 0.1
+
 WINDOW_FEATURES = [
     "AI0_Vibration_mean",
     "AI0_Vibration_std",
@@ -105,6 +110,9 @@ class StreamingDetector:
         self.raw_buffer: deque[np.ndarray] = deque(
             maxlen=max(self.win1_size, self.win05_size)
         )
+        self.time_buffer: deque[pd.Timestamp] = deque(
+            maxlen=max(self.win1_size, self.win05_size)
+        )
         self.sample_score_buffer: deque[float] = deque(maxlen=self.sample_agg_k)
         self.or3_history: deque[bool] = deque(maxlen=self.p)
 
@@ -144,21 +152,28 @@ class StreamingDetector:
     def reset_state(self) -> None:
         """Clear all causal history used by sample/window/persistence logic."""
         self.raw_buffer.clear()
+        self.time_buffer.clear()
         self.sample_score_buffer.clear()
         self.or3_history.clear()
 
         for _ in range(self.p):
             self.or3_history.append(False)
 
-    def _check_gap(self, timestamp: pd.Timestamp) -> None:
+    def _check_gap(self, timestamp: pd.Timestamp) -> tuple[bool, float]:
+        """Check causal segment boundary and return (reset, gap_seconds)."""
+        gap_reset = False
+        gap_seconds = 0.0
+
         if self.last_time is not None:
-            gap = (timestamp - self.last_time).total_seconds()
-            if gap < 0:
+            gap_seconds = (timestamp - self.last_time).total_seconds()
+            if gap_seconds < 0:
                 raise ValueError("Streaming timestamps must be non-decreasing.")
-            if gap > self.gap_threshold_sec:
+            if gap_seconds > self.gap_threshold_sec:
                 self.reset_state()
+                gap_reset = True
 
         self.last_time = timestamp
+        return gap_reset, gap_seconds
 
     # ------------------------------------------------------------------
     # Feature extraction
@@ -173,8 +188,11 @@ class StreamingDetector:
         return np.hstack([current, diff])
 
     @staticmethod
-    def _extract_window_features(buffer: np.ndarray) -> np.ndarray:
-        """Exactly 16 window features used by KAMPact."""
+    def _extract_window_features(
+        buffer: np.ndarray,
+        timestamps: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Exactly 16 KAMPact window features, with slope per second."""
         if buffer.ndim != 2 or buffer.shape[1] != 3:
             raise ValueError("Window buffer must have shape (N, 3).")
 
@@ -182,7 +200,18 @@ class StreamingDetector:
         if n < 2:
             raise ValueError("Window feature extraction requires at least 2 samples.")
 
-        x_idx = np.arange(n, dtype=float)
+        if timestamps is None:
+            # Backward-compatible fallback only for synthetic/direct calls.
+            # Production fit/streaming paths always pass real TimeStamp values.
+            x_time = np.arange(n, dtype=float) * NOMINAL_SAMPLE_SEC
+        else:
+            ts = pd.to_datetime(timestamps, errors="coerce")
+            if pd.isna(ts).any():
+                raise ValueError("Window timestamps contain NaT.")
+            x_time = (ts - ts[0]).total_seconds().to_numpy(dtype=float)
+            if len(x_time) != n or np.ptp(x_time) <= 0.0:
+                raise ValueError("Window timestamps must span a positive time interval.")
+
         features: list[float] = []
 
         for col in range(3):
@@ -192,7 +221,8 @@ class StreamingDetector:
             std = float(np.std(data, ddof=1))
             rms = float(np.sqrt(np.mean(data**2)))
             ptp = float(np.max(data) - np.min(data))
-            slope = float(np.polyfit(x_idx, data, 1)[0])
+            # Units: sensor-unit / second, matching offline safe_slope().
+            slope = float(np.polyfit(x_time, data, 1)[0])
 
             features.extend([mean, std, rms, ptp, slope])
 
@@ -249,12 +279,14 @@ class StreamingDetector:
 
         for _, group in df.groupby("group_id", sort=False):
             vals = group[SENSOR_COLS].to_numpy(dtype=float)
+            times = group["TimeStamp"].to_numpy()
 
             for i in range(len(vals)):
                 if i >= self.win05_size - 1:
                     features.append(
                         self._extract_window_features(
-                            vals[i - self.win05_size + 1 : i + 1]
+                            vals[i - self.win05_size + 1 : i + 1],
+                            times[i - self.win05_size + 1 : i + 1],
                         )
                     )
 
@@ -277,11 +309,13 @@ class StreamingDetector:
 
         for _, group in df.groupby("group_id", sort=False):
             vals = group[SENSOR_COLS].to_numpy(dtype=float)
+            times = group["TimeStamp"].to_numpy()
 
             for i in range(size - 1, len(vals)):
                 features.append(
                     self._extract_window_features(
-                        vals[i - size + 1 : i + 1]
+                        vals[i - size + 1 : i + 1],
+                        times[i - size + 1 : i + 1],
                     )
                 )
 
@@ -585,11 +619,13 @@ class StreamingDetector:
     def _score_window(
         self,
         buffer_arr: np.ndarray,
+        time_arr: np.ndarray,
         size: int,
         key: str,
     ) -> float:
         feature = self._extract_window_features(
             buffer_arr[-size:],
+            time_arr[-size:],
         )
 
         median = self.feature_medians[key]
@@ -620,7 +656,7 @@ class StreamingDetector:
             raise RuntimeError("Call fit() before step().")
 
         timestamp = pd.Timestamp(timestamp)
-        self._check_gap(timestamp)
+        gap_reset, gap_seconds = self._check_gap(timestamp)
 
         current = np.asarray(
             [ai0, ai1, ai2],
@@ -633,7 +669,9 @@ class StreamingDetector:
         previous = self.raw_buffer[-1] if self.raw_buffer else None
 
         self.raw_buffer.append(current)
+        self.time_buffer.append(timestamp)
         buffer_arr = np.asarray(self.raw_buffer, dtype=float)
+        time_arr = np.asarray(self.time_buffer)
 
         # --------------------------------------------------------------
         # Sample-level causal detector
@@ -681,6 +719,7 @@ class StreamingDetector:
         if len(buffer_arr) >= self.win05_size:
             win05_score = self._score_window(
                 buffer_arr,
+                time_arr,
                 self.win05_size,
                 "win05",
             )
@@ -691,6 +730,7 @@ class StreamingDetector:
         if len(buffer_arr) >= self.win1_size:
             win1_score = self._score_window(
                 buffer_arr,
+                time_arr,
                 self.win1_size,
                 "win1",
             )
@@ -724,6 +764,8 @@ class StreamingDetector:
 
         return {
             "timestamp": timestamp,
+            "segment_reset": bool(gap_reset),
+            "gap_seconds": float(gap_seconds),
             "sample_score": sample_score,
             "win05_score": win05_score,
             "win1_score": win1_score,

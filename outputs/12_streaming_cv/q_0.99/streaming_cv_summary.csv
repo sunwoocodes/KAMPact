@@ -1,0 +1,2 @@
+﻿repeats,n_events,event_detection_rate_mean,event_detection_rate_std,delay_mean_sec_mean,delay_mean_sec_std,sample_f1_mean,sample_precision_mean,sample_recall_mean,normal_fa_cycle_rate_mean,normal_fa_cycle_rate_std,normal_fa_episodes_mean,idle_fa_cycle_rate_mean,idle_fa_cycle_rate_std,idle_fa_episodes_mean,quantile,protocol
+5,21,0.9523809523809523,0.0,0.43499999999999994,0.0,0.783571377684645,0.7340607063824851,0.8403333333333334,0.07827788649706457,0.004989255884141668,62.4,0.0,0.0,0.0,0.99,StreamingDetector; normal-only train/calibration; held-out segment test
