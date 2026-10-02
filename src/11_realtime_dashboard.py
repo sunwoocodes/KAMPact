@@ -1,33 +1,16 @@
+
+from __future__ import annotations
+
 import argparse
 import platform
-import sys
 from collections import deque
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.font_manager as fm
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-# 한글 폰트 강제 탐색 및 설정 (메인 그래프 레이블용)
-system_os = platform.system()
-if system_os == 'Windows':
-    target_font = 'Malgun Gothic'
-elif system_os == 'Darwin':
-    target_font = 'AppleGothic'
-else:
-    target_font = 'NanumGothic'
-
-font_list = [f.name for f in fm.fontManager.ttflist]
-if target_font in font_list:
-    plt.rcParams['font.family'] = target_font
-else:
-    korean_fonts = [f for f in font_list if any(x in f for x in ['Gothic', 'Malgun', 'Nanum', 'Apple'])]
-    if korean_fonts:
-        plt.rcParams['font.family'] = korean_fonts[0]
-
-plt.rcParams['axes.unicode_minus'] = False  # 마이너스 기호 깨짐 방지
 
 try:
     from core_detector import StreamingDetector
@@ -35,220 +18,678 @@ except ImportError:
     from src.core_detector import StreamingDetector
 
 
-def main():
-    parser = argparse.ArgumentParser(description="KAMPact - OR_3_P2 Real-time Dashboard")
-    parser.add_argument("--normal-path", default="data/press_data_normal_with_idle.csv")
-    parser.add_argument("--fault-path", default="data/outlier_data.csv")
-    parser.add_argument("--fps", type=int, default=30, help="Target frames per second")
-    parser.add_argument("--plot-window", type=int, default=150, help="Number of samples to display")
+# ---------------------------------------------------------------------
+# Korean font
+# ---------------------------------------------------------------------
+system_os = platform.system()
+
+if system_os == "Windows":
+    target_font = "Malgun Gothic"
+elif system_os == "Darwin":
+    target_font = "AppleGothic"
+else:
+    target_font = "NanumGothic"
+
+font_names = {f.name for f in fm.fontManager.ttflist}
+
+if target_font in font_names:
+    plt.rcParams["font.family"] = target_font
+else:
+    fallbacks = [
+        f.name
+        for f in fm.fontManager.ttflist
+        if any(token in f.name for token in ["Gothic", "Malgun", "Nanum", "Apple"])
+    ]
+    if fallbacks:
+        plt.rcParams["font.family"] = fallbacks[0]
+
+plt.rcParams["axes.unicode_minus"] = False
+
+
+SENSORS = [
+    "AI0_Vibration",
+    "AI1_Vibration",
+    "AI2_Current",
+]
+
+GAP_THRESHOLD_SEC = 0.5
+DEFAULT_OUTPUT_DIR = "outputs/11_realtime_dashboard"
+
+
+def preprocess_raw(
+    df: pd.DataFrame,
+    source: str,
+) -> pd.DataFrame:
+    required = ["TimeStamp", *SENSORS]
+
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"{source}: missing columns: {missing}")
+
+    work = df.copy()
+
+    work["TimeStamp"] = pd.to_datetime(
+        work["TimeStamp"],
+        errors="coerce",
+    )
+    work = (
+        work
+        .dropna(subset=["TimeStamp"])
+        .sort_values("TimeStamp")
+        .reset_index(drop=True)
+    )
+
+    for col in SENSORS:
+        work[col] = pd.to_numeric(
+            work[col],
+            errors="coerce",
+        )
+
+    if work[SENSORS].isna().any().any():
+        raise ValueError(f"{source}: sensor data contain NaN.")
+
+    if "Idle" in work.columns:
+        work["Idle"] = pd.to_numeric(
+            work["Idle"],
+            errors="coerce",
+        ).fillna(0)
+    else:
+        work["Idle"] = 0
+
+    if "Equipment_state" in work.columns:
+        work["Equipment_state"] = pd.to_numeric(
+            work["Equipment_state"],
+            errors="coerce",
+        ).fillna(0)
+    else:
+        work["Equipment_state"] = 1 if source == "fault" else 0
+
+    # Segment by the same gap rule as the offline pipeline.
+    gap = work["TimeStamp"].diff().dt.total_seconds()
+    break_mask = gap > GAP_THRESHOLD_SEC
+    break_mask.iloc[0] = True
+
+    work["segment_id"] = (
+        break_mask.cumsum() - 1
+    ).astype(int)
+
+    work["source"] = source
+    work["group_id"] = (
+        source
+        + "_"
+        + work["segment_id"].astype(str)
+    )
+
+    if source == "fault":
+        work["ground_truth"] = 1
+        work["kind"] = "fault"
+    else:
+        work["ground_truth"] = (
+            work["Equipment_state"].ge(1).astype(int)
+        )
+
+        idle_ratio = (
+            work["Idle"].eq(1)
+            .groupby(work["group_id"])
+            .transform("mean")
+        )
+
+        work["kind"] = np.where(
+            idle_ratio.ge(0.5),
+            "idle",
+            "normal",
+        )
+
+    return work
+
+
+def select_demo_normal(
+    normal_df: pd.DataFrame,
+    n_samples: int,
+) -> pd.DataFrame:
+    """Use only non-Idle normal operation for the visual demo."""
+    usable = normal_df[
+        normal_df["kind"].eq("normal")
+        & normal_df["Idle"].eq(0)
+    ].copy()
+
+    if usable.empty:
+        raise ValueError("No non-Idle normal samples are available for the demo.")
+
+    # Keep the latest normal samples, preserving real segment gaps.
+    return usable.tail(max(1, int(n_samples))).copy()
+
+
+def build_calibration_split(
+    normal_df: pd.DataFrame,
+    exclude_group_ids: set[str],
+    fraction: float,
+    seed: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    usable = normal_df[
+        normal_df["kind"].eq("normal")
+        & normal_df["Idle"].eq(0)
+        & ~normal_df["group_id"].isin(exclude_group_ids)
+    ].copy()
+
+    if usable.empty:
+        raise ValueError("No normal operation remains after excluding demo groups.")
+
+    groups = np.asarray(
+        sorted(usable["group_id"].astype(str).unique()),
+        dtype=str,
+    )
+
+    if len(groups) < 2:
+        raise ValueError("At least two normal segments are needed for train/calibration.")
+
+    rng = np.random.default_rng(seed)
+    rng.shuffle(groups)
+
+    n_cal = max(1, int(np.ceil(len(groups) * fraction)))
+    n_cal = min(n_cal, len(groups) - 1)
+
+    cal_groups = set(groups[:n_cal])
+
+    train = usable[
+        ~usable["group_id"].isin(cal_groups)
+    ].copy()
+
+    calibration = usable[
+        usable["group_id"].isin(cal_groups)
+    ].copy()
+
+    return train, calibration
+
+
+def make_info_text(
+    now: pd.Timestamp,
+    res: dict,
+    detector: StreamingDetector,
+    demo_fault_onset: pd.Timestamp | None,
+    first_alarm_time: pd.Timestamp | None,
+    current_ground_truth: int,
+) -> str:
+    threshold_s = detector.thresholds["sample"]
+    threshold_05 = detector.thresholds["win05"]
+    threshold_10 = detector.thresholds["win1"]
+
+    status = "ALARM" if res["final_alarm"] else (
+        "WARNING" if res["or3_base"] else "NORMAL"
+    )
+
+    active = ", ".join(res["active_detectors"]) if res["active_detectors"] else "None"
+
+    lines = [
+        "KAMPact | REAL-TIME DETECTOR",
+        "=" * 34,
+        f"Time          : {now:%H:%M:%S.%f}"[:-3],
+        f"Ground Truth  : {'FAULT' if current_ground_truth else 'NORMAL'}",
+        "",
+        "[INDIVIDUAL DETECTORS]",
+        f"Sample  : {res['sample_score']:8.2f} / {threshold_s:8.2f}"
+        f"  {'ALARM' if res['sample_alarm'] else 'NORMAL'}",
+        f"Win0.5  : {res['win05_score']:8.2f} / {threshold_05:8.2f}"
+        f"  {'ALARM' if res['win05_alarm'] else 'NORMAL'}",
+        f"Win1.0  : {res['win1_score']:8.2f} / {threshold_10:8.2f}"
+        f"  {'ALARM' if res['win1_alarm'] else 'NORMAL'}",
+        "",
+        "[ENSEMBLE]",
+        f"OR_3 candidate : {'ON' if res['or3_base'] else 'OFF'}",
+        f"P2 count       : {res['persistence_count']} / {detector.p}",
+        f"Active         : {active}",
+        "",
+        "[FINAL DECISION]",
+        f">>> {status} <<<",
+        "",
+        "[CALIBRATION]",
+        f"Quantile       : {detector.quantile:.4f}",
+        f"Train segments : {detector.calibration_info.get('train_segments', '-')}",
+        f"Calib segments : {detector.calibration_info.get('calibration_segments', '-')}",
+    ]
+
+    if demo_fault_onset is not None:
+        lines += [
+            "",
+            "[DEMO FAULT EVENT]",
+            f"Fault onset    : {demo_fault_onset:%H:%M:%S.%f}"[:-3],
+        ]
+
+        if first_alarm_time is not None:
+            delay = (
+                first_alarm_time - demo_fault_onset
+            ).total_seconds()
+            lines.append(f"Detection delay: {max(0.0, delay):.3f} sec")
+        else:
+            lines.append("Detection delay: waiting...")
+
+    return "\n".join(lines)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="KAMPact OR_3_P2 real-time streaming dashboard"
+    )
+
+    parser.add_argument(
+        "--normal-path",
+        default="data/press_data_normal_with_idle.csv",
+    )
+    parser.add_argument(
+        "--fault-path",
+        default="data/outlier_data.csv",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=DEFAULT_OUTPUT_DIR,
+    )
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=30,
+    )
+    parser.add_argument(
+        "--plot-window",
+        type=int,
+        default=150,
+    )
+    parser.add_argument(
+        "--demo-normal-samples",
+        type=int,
+        default=1000,
+    )
+    parser.add_argument(
+        "--calibration-fraction",
+        type=float,
+        default=0.20,
+        help="Fraction of non-Idle normal segments used only for threshold calibration.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+    )
+
     args = parser.parse_args()
 
-    # ---------------------------------------------------------
-    # 1. 데이터 로드 및 시연 준비 (전처리 포함)
-    # ---------------------------------------------------------
-    print("Loading data...")
-    df_normal = pd.read_csv(args.normal_path)
-    df_fault = pd.read_csv(args.fault_path)
+    if args.fps <= 0:
+        raise ValueError("--fps must be > 0.")
+    if args.plot_window < 20:
+        raise ValueError("--plot-window must be >= 20.")
+    if not 0.05 <= args.calibration_fraction < 0.5:
+        raise ValueError("--calibration-fraction must be in [0.05, 0.5).")
 
-    def preprocess(df, source_name):
-        df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
-        df.sort_values('TimeStamp', inplace=True)
-        
-        gap = df['TimeStamp'].diff().dt.total_seconds()
-        brk = gap > 0.5
-        brk.iloc[0] = True
-        seg = brk.cumsum() - 1
-        
-        df['group_id'] = source_name + "_" + seg.astype(str)
-        return df
+    normal_path = Path(args.normal_path)
+    fault_path = Path(args.fault_path)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    df_normal = preprocess(df_normal, "normal")
-    df_fault = preprocess(df_fault, "fault")
-    
-    # ---------------------------------------------------------
-    # 2. 코어 엔진 초기화 및 학습 (Threshold 고정)
-    # ---------------------------------------------------------
-    detector = StreamingDetector(
-        win1_size=10, 
-        win05_size=5, 
-        sample_agg_k=3, 
-        persistence_p=2, 
-        quantile_threshold=0.9999
+    if not normal_path.exists():
+        raise FileNotFoundError(f"Normal file not found: {normal_path}")
+    if not fault_path.exists():
+        raise FileNotFoundError(f"Fault file not found: {fault_path}")
+
+    print("=" * 88)
+    print("KAMPact - Real-time OR_3_P2 Dashboard")
+    print("=" * 88)
+
+    normal_raw = preprocess_raw(
+        pd.read_csv(normal_path),
+        "normal",
     )
-    
-    print("\nInitializing model and thresholds with normal data (fit)...")
-    detector.fit(df_normal)
-    
-    demo_df = pd.concat([df_normal.tail(1000), df_fault]).reset_index(drop=True)
-    total_frames = len(demo_df)
-    print(f"\nReady to stream {total_frames} samples.")
+    fault_raw = preprocess_raw(
+        pd.read_csv(fault_path),
+        "fault",
+    )
 
-    # ---------------------------------------------------------
-    # 3. 플롯 버퍼 준비
-    # ---------------------------------------------------------
+    demo_normal = select_demo_normal(
+        normal_raw,
+        args.demo_normal_samples,
+    )
+
+    demo_normal_groups = set(
+        demo_normal["group_id"].astype(str).unique()
+    )
+
+    # Train/calibration are completely separated from the samples shown
+    # in the demo stream.
+    train_df, calibration_df = build_calibration_split(
+        normal_raw,
+        exclude_group_ids=demo_normal_groups,
+        fraction=args.calibration_fraction,
+        seed=args.seed,
+    )
+
+    detector = StreamingDetector(
+        win1_size=10,          # 1.0 s at nominal 0.1 s sampling
+        win05_size=5,          # 0.5 s
+        sample_agg_k=3,        # causal mean3
+        persistence_p=2,       # OR_3 + P2
+        gap_threshold_sec=GAP_THRESHOLD_SEC,
+        quantile_threshold=0.9999,
+        random_state=args.seed,
+    )
+
+    fit_info = detector.fit(
+        normal_df=train_df,
+        calibration_df=calibration_df,
+    )
+
+    print(
+        f"[INFO] Train rows      : {fit_info['train_rows']:,}\n"
+        f"[INFO] Calibration rows: {fit_info['calibration_rows']:,}\n"
+        f"[INFO] Train segments  : {fit_info['train_segments']}\n"
+        f"[INFO] Calibration seg.: {fit_info['calibration_segments']}\n"
+        f"[INFO] Thresholds      : {fit_info['thresholds']}"
+    )
+
+    # One continuous stream: normal demonstration -> fault.
+    demo_df = pd.concat(
+        [
+            demo_normal,
+            fault_raw,
+        ],
+        ignore_index=True,
+    )
+
+    if demo_df.empty:
+        raise ValueError("Demo stream is empty.")
+
+    demo_df = demo_df.sort_values(
+        ["TimeStamp", "source", "segment_id"]
+    ).reset_index(drop=True)
+
+    # A large time gap naturally triggers detector.reset_state().
+    # Store the actual source order as a visual/demo sequence too.
+    first_fault_rows = demo_df[
+        demo_df["source"].eq("fault")
+    ]
+
+    demo_fault_onset = (
+        first_fault_rows["TimeStamp"].iloc[0]
+        if not first_fault_rows.empty
+        else None
+    )
+
+    print(f"[INFO] Demo stream rows : {len(demo_df):,}")
+    print(f"[INFO] Demo fault onset : {demo_fault_onset}")
+    print("[INFO] Starting dashboard...")
+
+    # -----------------------------------------------------------------
+    # Plot buffers
+    # -----------------------------------------------------------------
     plot_window = args.plot_window
     x_data = np.arange(plot_window)
-    
-    buf_ai0 = deque([np.nan]*plot_window, maxlen=plot_window)
-    buf_ai1 = deque([np.nan]*plot_window, maxlen=plot_window)
-    buf_ai2 = deque([np.nan]*plot_window, maxlen=plot_window)
-    buf_alarm = deque([0]*plot_window, maxlen=plot_window)
 
-    # ---------------------------------------------------------
-    # 4. GUI 플롯 레이아웃 설정
-    # ---------------------------------------------------------
-    plt.style.use('dark_background')
+    buf_ai0 = deque([np.nan] * plot_window, maxlen=plot_window)
+    buf_ai1 = deque([np.nan] * plot_window, maxlen=plot_window)
+    buf_ai2 = deque([np.nan] * plot_window, maxlen=plot_window)
+    buf_alarm = deque([0] * plot_window, maxlen=plot_window)
+    buf_warning = deque([0] * plot_window, maxlen=plot_window)
+
     fig = plt.figure(figsize=(15, 9))
-    fig.canvas.manager.set_window_title('KAMPact Real-time Ensemble Dashboard (OR_3_P2)')
-    
-    gs = fig.add_gridspec(3, 2, width_ratios=[3, 1.2], height_ratios=[2, 2, 1.2])
-    
-    ax_vib = fig.add_subplot(gs[0, 0])
-    ax_cur = fig.add_subplot(gs[1, 0])
-    ax_alm = fig.add_subplot(gs[2, 0])
-    ax_info = fig.add_subplot(gs[:, 1])
+    try:
+        fig.canvas.manager.set_window_title(
+            "KAMPact Real-time OR_3_P2 Dashboard"
+        )
+    except Exception:
+        pass
 
-    # [1] 상단 그래프: 진동 (초기 Y축 범위는 임의로 설정하되, 실행 시 자동 조절됨)
-    line_ai0, = ax_vib.plot(x_data, buf_ai0, label='AI0 (Vibration)', color='#00ffcc', alpha=0.8)
-    line_ai1, = ax_vib.plot(x_data, buf_ai1, label='AI1 (Vibration)', color='#ff00ff', alpha=0.8)
-    ax_vib.set_xlim(0, plot_window)
-    ax_vib.set_title("Real-time Sensor Streaming (Vibration)", fontsize=12, fontweight='bold')
-    ax_vib.legend(loc='upper right')
-    ax_vib.grid(True, linestyle='--', alpha=0.3)
+    grid = fig.add_gridspec(
+        3,
+        2,
+        width_ratios=[3.0, 1.35],
+        height_ratios=[2.0, 2.0, 1.25],
+    )
 
-    # [2] 중단 그래프: 전류 
-    line_ai2, = ax_cur.plot(x_data, buf_ai2, label='AI2 (Current)', color='#ffff00', alpha=0.8)
-    ax_cur.set_xlim(0, plot_window)
-    ax_cur.set_title("Real-time Sensor Streaming (Current)", fontsize=12, fontweight='bold')
-    ax_cur.legend(loc='upper right')
-    ax_cur.grid(True, linestyle='--', alpha=0.3)
+    ax_vib = fig.add_subplot(grid[0, 0])
+    ax_cur = fig.add_subplot(grid[1, 0])
+    ax_alarm = fig.add_subplot(grid[2, 0])
+    ax_info = fig.add_subplot(grid[:, 1])
 
-    # [3] 하단 그래프: 최종 알람
-    line_alarm, = ax_alm.plot(x_data, buf_alarm, color='red', linewidth=2)
-    ax_alm.set_xlim(0, plot_window)
-    ax_alm.set_ylim(-0.2, 1.2)
-    ax_alm.set_yticks([0, 1])
-    ax_alm.set_yticklabels(['Normal', 'FAULT!'], color='red', fontweight='bold')
-    ax_alm.set_title("Final Ensemble Decision (OR_3_P2)", fontsize=12, fontweight='bold')
+    line_ai0, = ax_vib.plot(
+        x_data,
+        buf_ai0,
+        label="AI0 Vibration",
+        linewidth=1.4,
+    )
+    line_ai1, = ax_vib.plot(
+        x_data,
+        buf_ai1,
+        label="AI1 Vibration",
+        linewidth=1.4,
+    )
+    ax_vib.set_xlim(0, plot_window - 1)
+    ax_vib.set_title("Real-time Sensor Streaming - Vibration")
+    ax_vib.legend(loc="upper right")
+    ax_vib.grid(True, alpha=0.25)
 
-    # 우측 정보 텍스트 패널 (영문)
-    ax_info.axis('off')
+    line_ai2, = ax_cur.plot(
+        x_data,
+        buf_ai2,
+        label="AI2 Current",
+        linewidth=1.4,
+    )
+    ax_cur.set_xlim(0, plot_window - 1)
+    ax_cur.set_title("Real-time Sensor Streaming - Current")
+    ax_cur.legend(loc="upper right")
+    ax_cur.grid(True, alpha=0.25)
+
+    line_alarm, = ax_alarm.plot(
+        x_data,
+        buf_alarm,
+        linewidth=2.0,
+        label="Final Alarm",
+    )
+    line_warning, = ax_alarm.plot(
+        x_data,
+        buf_warning,
+        linewidth=1.5,
+        linestyle="--",
+        label="OR_3 Candidate",
+    )
+    ax_alarm.set_xlim(0, plot_window - 1)
+    ax_alarm.set_ylim(-0.15, 1.15)
+    ax_alarm.set_yticks([0, 1])
+    ax_alarm.set_yticklabels(["Normal", "FAULT"])
+    ax_alarm.set_title("Decision Timeline - OR_3 + P2")
+    ax_alarm.legend(loc="upper right")
+    ax_alarm.grid(True, alpha=0.25)
+
+    ax_info.axis("off")
     info_text = ax_info.text(
-        0.05, 0.95, "", 
-        transform=ax_info.transAxes, 
-        fontsize=12, 
-        verticalalignment='top', 
-        color='white', 
-        family='monospace',
-        bbox=dict(boxstyle="round,pad=0.5", facecolor="#1e1e1e", edgecolor="#555555", alpha=0.8)
+        0.03,
+        0.98,
+        "",
+        transform=ax_info.transAxes,
+        va="top",
+        ha="left",
+        fontsize=10.5,
+        family="monospace",
+        bbox={
+            "boxstyle": "round,pad=0.5",
+            "facecolor": "white",
+            "edgecolor": "gray",
+            "alpha": 0.92,
+        },
     )
 
     plt.tight_layout()
 
-    def get_status_tag(is_alarm):
-        return "[ ALARM ]" if is_alarm else "[ NORMAL]"
+    first_alarm_time: pd.Timestamp | None = None
+    log_rows: list[dict[str, object]] = []
 
-    # 고정된 성능 지표 텍스트 (영문)
-    PERF_TEXT = (
-        "🏆 [VALIDATED MODEL PERFORMANCE]\n"
-        " - Model      : OR_3_P2 (Ensemble)\n"
-        " - Detection  : 91.43 %\n"
-        " - False Alarm: 0.90 %\n"
-        " - Avg Delay  : 0.57 sec\n\n"
-        + "="*35 + "\n\n"
-    )
+    def update(frame: int):
+        nonlocal first_alarm_time
 
-    # ---------------------------------------------------------
-    # 5. 애니메이션 업데이트 함수
-    # ---------------------------------------------------------
-    def update(frame):
-        if frame >= total_frames:
-            ani.event_source.stop()
-            return line_ai0, line_ai1, line_ai2, line_alarm, info_text
-            
+        if frame >= len(demo_df):
+            if getattr(update, "event_source", None) is not None:
+                update.event_source.stop()
+            return (
+                line_ai0,
+                line_ai1,
+                line_ai2,
+                line_alarm,
+                line_warning,
+                info_text,
+            )
+
         row = demo_df.iloc[frame]
-        t = row['TimeStamp']
-        ai0, ai1, ai2 = row['AI0_Vibration'], row['AI1_Vibration'], row['AI2_Current']
 
-        res = detector.step(t, ai0, ai1, ai2)
+        timestamp = pd.Timestamp(row["TimeStamp"])
+        ai0 = float(row["AI0_Vibration"])
+        ai1 = float(row["AI1_Vibration"])
+        ai2 = float(row["AI2_Current"])
+        ground_truth = int(row["ground_truth"])
+
+        result = detector.step(
+            timestamp,
+            ai0,
+            ai1,
+            ai2,
+        )
+
+        if (
+            demo_fault_onset is not None
+            and timestamp >= demo_fault_onset
+            and result["final_alarm"]
+            and first_alarm_time is None
+        ):
+            first_alarm_time = timestamp
 
         buf_ai0.append(ai0)
         buf_ai1.append(ai1)
         buf_ai2.append(ai2)
-        buf_alarm.append(1 if res['final_alarm'] else 0)
+        buf_alarm.append(1 if result["final_alarm"] else 0)
+        buf_warning.append(1 if result["or3_base"] else 0)
 
         line_ai0.set_ydata(buf_ai0)
         line_ai1.set_ydata(buf_ai1)
         line_ai2.set_ydata(buf_ai2)
         line_alarm.set_ydata(buf_alarm)
+        line_warning.set_ydata(buf_warning)
 
-        # 동적 Y축 스케일링 (자동 상하안 조절)
-        # 진동 (AI0, AI1) 스케일링
-        vib_data = np.concatenate([np.array(buf_ai0, dtype=float), np.array(buf_ai1, dtype=float)])
-        if not np.all(np.isnan(vib_data)):
-            vmin, vmax = np.nanmin(vib_data), np.nanmax(vib_data)
-            margin = max((vmax - vmin) * 0.1, 0.1)
+        # Dynamic axes.
+        vib = np.concatenate(
+            [
+                np.asarray(buf_ai0, dtype=float),
+                np.asarray(buf_ai1, dtype=float),
+            ]
+        )
+        vib = vib[np.isfinite(vib)]
+
+        if len(vib):
+            vmin = float(vib.min())
+            vmax = float(vib.max())
+            margin = max((vmax - vmin) * 0.10, 0.05)
+            if np.isclose(vmin, vmax):
+                margin = max(abs(vmin) * 0.05, 0.05)
             ax_vib.set_ylim(vmin - margin, vmax + margin)
 
-        # 전류 (AI2) 스케일링
-        cur_data = np.array(buf_ai2, dtype=float)
-        if not np.all(np.isnan(cur_data)):
-            cmin, cmax = np.nanmin(cur_data), np.nanmax(cur_data)
-            margin = max((cmax - cmin) * 0.1, 0.1)
+        cur = np.asarray(buf_ai2, dtype=float)
+        cur = cur[np.isfinite(cur)]
+
+        if len(cur):
+            cmin = float(cur.min())
+            cmax = float(cur.max())
+            margin = max((cmax - cmin) * 0.10, 1.0)
+            if np.isclose(cmin, cmax):
+                margin = max(abs(cmin) * 0.05, 1.0)
             ax_cur.set_ylim(cmin - margin, cmax + margin)
 
-        # 하단 알람 그래프 배경 업데이트
-        for coll in list(ax_alm.collections):
-            coll.remove()
-        ax_alm.fill_between(x_data, 0, buf_alarm, color='red', alpha=0.3)
+        # Current state display.
+        status = (
+            "ALARM"
+            if result["final_alarm"]
+            else "WARNING"
+            if result["or3_base"]
+            else "NORMAL"
+        )
 
-        # 우측 텍스트 패널 업데이트 (영문)
-        thr_s = detector.thresholds['sample']
-        thr_w05 = detector.thresholds['win05']
-        thr_w1 = detector.thresholds['win1']
-        time_str = t.strftime('%H:%M:%S.%f')[:-3]
-        
-        text = PERF_TEXT
-        text += f"🕒 Time: {time_str}\n"
-        text += "="*35 + "\n\n"
-        text += "📊 [INDIVIDUAL DETECTOR SCORES]\n"
-        text += f" Sample : {res['sample_score']:6.1f} / {thr_s:<5.1f} {get_status_tag(res['sample_alarm'])}\n"
-        text += f" Win0.5 : {res['win05_score']:6.1f} / {thr_w05:<5.1f} {get_status_tag(res['win05_alarm'])}\n"
-        text += f" Win1.0 : {res['win1_score']:6.1f} / {thr_w1:<5.1f} {get_status_tag(res['win1_alarm'])}\n\n"
-        
-        text += "="*35 + "\n\n"
-        text += "⚙️ [ENSEMBLE LOGIC]\n"
-        text += f" Early Warn (OR_3): {get_status_tag(res['or3_base'])}\n"
-        history_sum = sum(detector.or3_history)
-        text += f" P2 Persistence   : {history_sum} / {detector.p} (Held)\n\n"
-        
-        text += "="*35 + "\n\n"
-        text += "🚨 [FINAL DECISION]\n"
-        if res['final_alarm']:
-            text += " >> FAULT DETECTED! <<\n"
-            fig.patch.set_facecolor('#330000') 
+        info_text.set_text(
+            make_info_text(
+                now=timestamp,
+                res=result,
+                detector=detector,
+                demo_fault_onset=demo_fault_onset,
+                first_alarm_time=first_alarm_time,
+                current_ground_truth=ground_truth,
+            )
+        )
+
+        # Background indicates only the current final decision.
+        if status == "ALARM":
+            fig.patch.set_alpha(1.0)
         else:
-            text += " >> NORMAL OPERATION\n"
-            fig.patch.set_facecolor('black')
-            
-        info_text.set_text(text)
+            fig.patch.set_alpha(1.0)
 
-        return line_ai0, line_ai1, line_ai2, line_alarm, info_text
+        log_rows.append(
+            {
+                "stream_index": int(frame),
+                "source": row["source"],
+                "TimeStamp": timestamp,
+                "ground_truth": ground_truth,
+                "AI0_Vibration": ai0,
+                "AI1_Vibration": ai1,
+                "AI2_Current": ai2,
+                "score_0.5s": result["win05_score"],
+                "threshold_0.5s": detector.thresholds["win05"],
+                "alarm_0.5s": result["win05_alarm"],
+                "score_1.0s": result["win1_score"],
+                "threshold_1.0s": detector.thresholds["win1"],
+                "alarm_1.0s": result["win1_alarm"],
+                "sample_score": result["sample_score"],
+                "sample_threshold": detector.thresholds["sample"],
+                "sample_alarm": result["sample_alarm"],
+                "OR_3": result["or3_base"],
+                "P2": result["final_alarm"],
+                "state": status,
+                "active_detectors": ",".join(result["active_detectors"])
+                if result["active_detectors"]
+                else "",
+            }
+        )
 
-    # ---------------------------------------------------------
-    # 6. 루프 실행
-    # ---------------------------------------------------------
-    interval_ms = int(1000 / args.fps)
-    
+        return (
+            line_ai0,
+            line_ai1,
+            line_ai2,
+            line_alarm,
+            line_warning,
+            info_text,
+        )
+
+    interval_ms = max(1, int(1000 / args.fps))
+
     ani = animation.FuncAnimation(
-        fig, 
-        update, 
-        frames=total_frames, 
-        interval=interval_ms, 
-        blit=False
+        fig,
+        update,
+        frames=len(demo_df),
+        interval=interval_ms,
+        blit=False,
+        repeat=False,
     )
 
-    plt.show()
+    # Keep a reference because matplotlib may otherwise warn about GC.
+    update.event_source = ani.event_source
+
+    try:
+        plt.show()
+    finally:
+        output_path = output_dir / "realtime_log.csv"
+
+        if log_rows:
+            log_df = pd.DataFrame(log_rows)
+            log_df.to_csv(
+                output_path,
+                index=False,
+                encoding="utf-8-sig",
+            )
+
+            print(f"[SAVED] {output_path}")
+        else:
+            print("[WARN] No realtime log rows were produced.")
+
 
 if __name__ == "__main__":
     main()
