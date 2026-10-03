@@ -4,10 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import pickle
 import platform
+import subprocess
 import sys
+import threading
+import time
 from collections import deque
 from pathlib import Path
 
@@ -18,6 +22,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import FancyBboxPatch, Patch, Rectangle
+from matplotlib.widgets import Button
 
 try:
     from core_detector import StreamingDetector, WINDOW_FEATURES, SENSOR_COLS
@@ -25,9 +30,11 @@ except ImportError:
     from src.core_detector import StreamingDetector, WINDOW_FEATURES, SENSOR_COLS
 
 try:
-    from dashboard_stage_monitor import StageBoard, TimingStore, run_command_live, stage_details
+    from dashboard_stage_monitor import (FigureGallery, StageBoard, TimingStore, find_stage_images,
+                                         run_command_live, stage_details)
 except ImportError:
-    from src.dashboard_stage_monitor import StageBoard, TimingStore, run_command_live, stage_details
+    from src.dashboard_stage_monitor import (FigureGallery, StageBoard, TimingStore, find_stage_images,
+                                             run_command_live, stage_details)
 
 C = {
     "bg": "#0b0f17", "panel": "#121926", "border": "#27344a",
@@ -210,13 +217,42 @@ def nominal_interval(ts, default: float = 0.1) -> float:
     return float(d.median()) if len(d) else float(default)
 
 
-def save_final_model(out_dir: Path, detector, fit_info: dict, cfg: dict, args) -> list[str]:
+def _file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()[:16]
+
+
+def _collect_metadata(root, inputs) -> dict:
+    """재현성 정보: 패키지 버전, git commit, 입력 파일 해시."""
+    meta = {"python": platform.python_version(), "numpy": np.__version__, "pandas": pd.__version__}
+    try:
+        import sklearn
+        meta["sklearn"] = sklearn.__version__
+    except Exception:
+        pass
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(root),
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        meta["code_commit"] = out or "n/a"
+    except Exception:
+        meta["code_commit"] = "n/a"
+    meta["input_sha256_16"] = {Path(p).name: _file_sha256(Path(p)) for p in inputs if Path(p).exists()}
+    return meta
+
+
+def save_final_model(out_dir: Path, detector, fit_info: dict, cfg: dict, args,
+                     root: Path | None = None, inputs=()) -> list[str]:
     """최종 배포 모델 설정/기준값/객체를 outputs/final_model/ 에 저장하고 저장 내역을 반환."""
     out_dir.mkdir(parents=True, exist_ok=True)
     config = {
         **cfg,
         "quantile": float(detector.quantile),
+        "seed": int(args.seed),
         "calibration_fraction": float(args.calibration_fraction),
+        "metadata": _collect_metadata(root or Path("."), inputs),
         "train_rows": int(fit_info["train_rows"]),
         "calibration_rows": int(fit_info["calibration_rows"]),
         "created_at": pd.Timestamp.now().isoformat(timespec="seconds"),
@@ -285,6 +321,11 @@ def summarize_realtime(df: pd.DataFrame, nominal_dt: float):
         ("final_alarm_frames", int(alarm.sum())),
         ("max_score_ratio", round(max_ratio, 4)),
     ]
+    if "infer_ms" in df.columns and df["infer_ms"].notna().any():
+        lat = df["infer_ms"].dropna()
+        metrics += [("infer_latency_ms_mean", round(float(lat.mean()), 3)),
+                    ("infer_latency_ms_p95", round(float(lat.quantile(0.95)), 3)),
+                    ("infer_latency_ms_max", round(float(lat.max()), 3))]
     return pd.DataFrame(metrics, columns=["metric", "value"]), ev
 
 
@@ -658,7 +699,12 @@ def main() -> None:
     parser.add_argument("--normal-path", default="data/press_data_normal.csv")
     parser.add_argument("--fault-path", default="data/outlier_data.csv")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--fps", type=int, default=20)
+    parser.add_argument("--fps", type=float, default=None,
+                        help="재생 속도(행/초). 기본: 데이터의 샘플링 간격에 맞춘 실시간 속도 x --replay-speed")
+    parser.add_argument("--auto-start", type=float, default=0.0,
+                        help="파이프라인 완료 후 N초 뒤 자동으로 실시간 추론 창으로 이동 (0 = 버튼/Enter 로 직접 이동)")
+    parser.add_argument("--replay-speed", type=float, default=1.0,
+                        help="실시간 대비 재생 배속 (1.0 = 데이터 timestamp 속도 그대로)")
     parser.add_argument("--feature-update-every", type=int, default=3)
     parser.add_argument("--axis-update-every", type=int, default=5)
     parser.add_argument("--plot-window", type=int, default=150)
@@ -672,7 +718,6 @@ def main() -> None:
     parser.add_argument("--calibration-fraction", type=float, default=0.20)
     parser.add_argument("--quantile", type=float, default=DEFAULT_QUANTILE)
     parser.add_argument("--seed", type=int, default=PIPELINE_CONFIG["seed"])
-    parser.add_argument("--preprocess-seconds", type=float, default=2.0)
     parser.add_argument(
         "--reuse-results", action="store_true",
         help="1~11 산출물이 이미 있으면 해당 단계를 다시 실행하지 않고 재사용합니다.",
@@ -683,7 +728,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.fps <= 0 or args.feature_update_every < 1 or args.axis_update_every < 1:
+    if (args.fps is not None and args.fps <= 0) or args.replay_speed <= 0 or args.feature_update_every < 1 or args.axis_update_every < 1:
         raise ValueError("fps / feature-update-every / axis-update-every must be positive.")
     if args.plot_window < 20:
         raise ValueError("plot-window must be >= 20.")
@@ -736,9 +781,455 @@ def main() -> None:
     normal_raw_preview = pd.read_csv(normal_path, nrows=10)
     fault_raw_preview = pd.read_csv(fault_path, nrows=10)
 
+    # ------------------------------------------------------------
+    # 1번 창: 파이프라인 실행 전용 (실시간 추론 위젯과 분리)
+    #   왼쪽  : 단계 실행 현황판 (상태 / 진행률 / 경과 / 결과 요약)
+    #   가운데: 현재 단계 + 실행 로그
+    #   오른쪽: 시각화 결과 갤러리 + 마지막 완료 단계 결과 상세
+    #   아래  : 그래프 이동 버튼, '실시간 추론 시작' 버튼
+    # 실시간 추론은 모든 단계가 끝난 뒤 2번 창으로 열린다.
+    # ------------------------------------------------------------
+    fig_p = plt.figure(figsize=(20, 11), facecolor=C["bg"])
+    try:
+        fig_p.canvas.manager.set_window_title("KAMPact - 1) 파이프라인 실행")
+    except Exception:
+        pass
+    outer_p = fig_p.add_gridspec(2, 1, height_ratios=[0.70, 10], hspace=0.10,
+                                 left=0.02, right=0.985, top=0.975, bottom=0.085)
+    ax_hdr_p = fig_p.add_subplot(outer_p[0])
+    body_p = outer_p[1].subgridspec(1, 3, width_ratios=[1.45, 1.0, 1.4], wspace=0.07)
+    ax_board = fig_p.add_subplot(body_p[0])
+    mid_p = body_p[1].subgridspec(2, 1, height_ratios=[1.0, 2.3], hspace=0.14)
+    right_p = body_p[2].subgridspec(2, 1, height_ratios=[2.3, 1.0], hspace=0.14)
+    ax_cur_p = fig_p.add_subplot(mid_p[0])
+    ax_log_p = fig_p.add_subplot(mid_p[1])
+    ax_gal = fig_p.add_subplot(right_p[0])
+    ax_detail_p = fig_p.add_subplot(right_p[1])
+
+    ax_hdr_p.axis("off")
+    ax_hdr_p.set_xlim(0, 1)
+    ax_hdr_p.set_ylim(0, 1)
+    ax_hdr_p.text(0.002, 0.68, "KAMPact", transform=ax_hdr_p.transAxes, fontsize=23, fontweight="bold",
+                  color=C["text"], va="center")
+    ax_hdr_p.text(0.002, 0.24, "1) 파이프라인 실행 (1~12)   →   2) 실시간 추론 (13)",
+                  transform=ax_hdr_p.transAxes, fontsize=9.5, color=C["muted"], va="center",
+                  fontname=KOREAN_FONT or "DejaVu Sans")
+    p_overall = ax_hdr_p.text(0.36, 0.50, "", transform=ax_hdr_p.transAxes, fontsize=11, color=C["text"],
+                              va="center", ha="left", fontname=KOREAN_FONT or "DejaVu Sans")
+    ax_hdr_p.add_patch(Rectangle((0, 0.0), 1, 0.05, transform=ax_hdr_p.transAxes,
+                                 facecolor=C["panel"], edgecolor="none"))
+    p_bar = Rectangle((0, 0.0), 0, 0.05, transform=ax_hdr_p.transAxes, facecolor=C["blue"], edgecolor="none")
+    ax_hdr_p.add_patch(p_bar)
+
+    gp = ax_gal.get_position()
+    ax_prev = fig_p.add_axes([gp.x0, 0.020, 0.085, 0.042])
+    ax_next = fig_p.add_axes([gp.x0 + 0.092, 0.020, 0.085, 0.042])
+    lp = ax_log_p.get_position()   # 시작 버튼은 가운데 열 아래 (그래프 이동 버튼과 겹치지 않게)
+    ax_start = fig_p.add_axes([lp.x0, 0.016, lp.width, 0.050])
+
+    timing_store = TimingStore(output_dir / "stage_timing.json")
+    gallery = FigureGallery(fig_p, ax_gal, C, KOREAN_FONT, ax_prev, ax_next)
+    board = StageBoard(
+        fig_p, ax_board,
+        panels={"cur": ax_cur_p, "log": ax_log_p, "detail": ax_detail_p},
+        labels=stage_labels[:12], colors=C, font=KOREAN_FONT, mono=MONO_FONT,
+        timing=timing_store, overall_bar=p_bar, overall_text=p_overall,
+        gallery=gallery, n_progress=12,
+    )
+
+    # '실시간 추론 시작' 버튼 (모든 단계가 끝나면 활성화)
+    start_ui = {"ready": False, "go": False}
+    start_btn = Button(ax_start, "파이프라인 실행 중 ...", color=C["panel"], hovercolor=C["panel"])
+    start_btn.label.set_color(C["muted"])
+    start_btn.label.set_fontname(KOREAN_FONT or "DejaVu Sans")
+    start_btn.label.set_fontsize(10.5)
+
+    def _on_start(_event=None):
+        if start_ui["ready"]:
+            start_ui["go"] = True
+
+    start_btn.on_clicked(_on_start)
+    fig_p.canvas.mpl_connect(
+        "key_press_event",
+        lambda ev: _on_start() if str(getattr(ev, "key", "")).lower() in ("enter", "return", " ", "space") else None)
+
+    stage_status_idx = {n: n - 1 for n in range(1, 13)}
+
+    def set_stage_state(index: int, state: str, detail: str = ""):
+        """기존 호출부 호환용 래퍼 (12단계 최종 모델 표시에 사용)."""
+        if state == "running":
+            board.begin(index, note=detail)
+        elif state == "done":
+            board.finish(index, parts=[detail] if detail else [])
+        else:
+            board.fail(index, detail)
+
+    # Show empty dashboard before executing actual stages.
+    plt.ion()
+    plt.show(block=False)
+    fig_p.canvas.draw_idle()
+    fig_p.canvas.flush_events()
+
+    # ------------------------------------------------------------
+    # ACTUAL PROJECT PIPELINE: 1~11
+    # ------------------------------------------------------------
+    stage_commands = {
+        1: ["python", "src/1_visualize_normal_outlier.py"],
+        3: ["python", "src/3_time_structure_analysis.py"],
+        4: ["python", "src/4_make_window_dataset.py", "--window-sec", "1.0", "--step-sec", "0.1",
+            "--output-dir", "result/modeling_dataset_1.0_0.1"],
+        5: ["python", "src/4_make_window_dataset.py", "--window-sec", "0.5", "--step-sec", "0.1",
+            "--output-dir", "result/modeling_dataset_0.5_0.1"],
+    }
+
+    # 단계 완료 마커: seed/quantile 이 바뀌면 이전 산출물을 재사용하지 않도록 비교한다.
+    marker_dir = output_dir / "stage_markers"
+    run_cfg = {"seed": args.seed, "quantile": args.quantile}
+
+    def _apply_cfg(cmd: list[str]) -> list[str]:
+        """하위 스크립트 명령의 seed / quantile 을 대시보드 인자(args)와 일치시킨다."""
+        out = list(cmd)
+        for i, tok in enumerate(out[:-1]):
+            if tok == "--seed":
+                out[i + 1] = str(args.seed)
+            elif tok in ("--normal-quantile", "--window-quantile", "--sample-quantile"):
+                out[i + 1] = str(args.quantile)
+        return out
+
+    def _marker_state(no: int):
+        """None: 마커 없음 / True: 같은 설정으로 실행됨 / False: 설정이 다름"""
+        p = marker_dir / f"stage_{no}.json"
+        if not p.exists():
+            return None
+        try:
+            return json.loads(p.read_text(encoding="utf-8")) == run_cfg
+        except Exception:
+            return False
+
+    def _add_figs(display_no: int, idx: int, since):
+        """단계가 만든 그래프를 갤러리에 추가 (실행했으면 이번에 만든 것만, 재사용이면 기존 것)."""
+        try:
+            paths = find_stage_images(root, display_no, since=since)
+            if paths:
+                board.add_figures(idx, display_no, paths)
+        except Exception as exc:  # noqa: BLE001
+            board.note(f"시각화 검색 실패: {exc}")
+
+    def exec_stage(display_no: int, commands=None, reuse_check: list[Path] | None = None,
+                   extra_env: dict[str, str] | None = None, func=None,
+                   require_marker: bool = False, verify: list[Path] | None = None, fallback=None):
+        """한 단계를 실행하고 현황판에 실시간 로그/진행률/결과를 표시.
+
+        commands       : 단일 명령(list[str]) 또는 여러 명령(list[list[str]])
+        func           : 외부 스크립트 대신 파이썬 함수를 실행할 때
+        require_marker : 산출물 위치를 알 수 없는 단계(1, 3, 11)는 대시보드가 같은 설정으로 실행한 기록이 있어야 재사용
+        verify/fallback: 스크립트 실행 후 verify 파일이 새로 만들어졌는지 확인, 아니면 fallback 으로 보완
+        """
+        idx = stage_status_idx[display_no]
+        if commands and isinstance(commands[0], str):
+            commands = [commands]
+
+        if args.reuse_results and reuse_check and all(p.exists() for p in reuse_check):
+            ms = _marker_state(display_no)
+            if ms is True or (ms is None and not require_marker):
+                parts = [p.strip() for p in make_stage_summary(root, display_no).split("|")]
+                board.finish(idx, parts=parts, details=stage_details(root, display_no), status="reused")
+                _add_figs(display_no, idx, None)
+                return
+
+        script = " + ".join(Path(c[1]).name for c in commands) if commands else "(내장 로직)"
+        board.begin(idx, script=script)
+        t_start = time.time() - 1.0
+        try:
+            if func is not None:
+                board.note("내장 로직 실행 중 ...")
+                board.run_with_pump(func)
+            else:
+                for cmd in commands:
+                    cmd = _apply_cfg(cmd)
+                    if cmd and cmd[0] == "python":
+                        cmd[0] = str(Path(sys.executable))
+                    rc, lines = run_command_live(root, cmd, extra_env,
+                                                 on_update=board.feed, wait=plt.pause)
+                    if rc != 0:
+                        raise RuntimeError(f"종료 코드 {rc}: {' '.join(Path(c).name for c in cmd[:2])}")
+                if verify and not all(p.exists() and p.stat().st_mtime >= t_start for p in verify):
+                    if fallback is None:
+                        raise RuntimeError("예상 산출물이 새로 생성되지 않았습니다: "
+                                           + ", ".join(p.name for p in verify))
+                    board.note("스크립트가 예상 위치에 결과를 만들지 않아 내장 로직으로 보완")
+                    board.run_with_pump(fallback)
+        except Exception as exc:
+            board.fail(idx, str(exc).splitlines()[0][:80], tail=list(board.log_tail)[-22:])
+            raise
+        try:
+            marker_dir.mkdir(parents=True, exist_ok=True)
+            (marker_dir / f"stage_{display_no}.json").write_text(json.dumps(run_cfg), encoding="utf-8")
+        except Exception:
+            pass
+        parts = [p.strip() for p in make_stage_summary(root, display_no).split("|")]
+        board.finish(idx, parts=parts, details=stage_details(root, display_no))
+        _add_figs(display_no, idx, t_start)
+
+    try:
+        # 1
+        exec_stage(1, stage_commands[1],
+                   reuse_check=[root / "data/press_data_normal.csv", root / "data/outlier_data.csv"],
+                   extra_env={"MPLBACKEND": "Agg"}, require_marker=True)
+
+        # 2 (actual same logic, saved under data/)
+        idle_csv = root / "data/press_data_normal_with_idle.csv"
+        if (root / "src/2_Classification_idle_sections.py").exists():
+            # 실제 2번 스크립트를 실행. 결과가 data/ 에 새로 만들어지지 않으면 내장 로직으로 보완.
+            exec_stage(2, ["python", "src/2_Classification_idle_sections.py"], reuse_check=[idle_csv],
+                       verify=[idle_csv], fallback=lambda: execute_idle_classification(root))
+        else:
+            exec_stage(2, func=lambda: execute_idle_classification(root), reuse_check=[idle_csv])
+
+        # 3
+        exec_stage(3, stage_commands[3],
+                   reuse_check=[root / "result/time_structure_analysis"], require_marker=True)
+
+        # 4 and 5 are the two actual calls to script 4.
+        exec_stage(4, stage_commands[4],
+                   reuse_check=[root / "result/modeling_dataset_1.0_0.1/model_windows.csv"])
+        exec_stage(5, stage_commands[5],
+                   reuse_check=[root / "result/modeling_dataset_0.5_0.1/model_windows.csv"])
+
+        # 6: 5_2 Window Mahalanobis CV
+        exec_stage(6, ["python", "src/5_2_run_mahalanobis.py",
+                       "--multiscale", "result/modeling_dataset_1.0_0.1", "result/modeling_dataset_0.5_0.1",
+                       "--output-dir", "outputs/5_2_mahalanobis_cv",
+                       "--n-splits", "5", "--repeats", "5", "--seed", "0",
+                       "--covariance", "ledoitwolf",
+                       "--threshold-modes", "normal_quantile", "--normal-quantile", "0.9999",
+                       "--k-consecutive", "1"],
+                   reuse_check=[root / "outputs/5_2_mahalanobis_cv/cv_comparison.csv",
+                                root / "outputs/5_2_mahalanobis_cv/cv_event_details.csv"])
+
+        # 7: 5_3 Sample Mahalanobis CV
+        exec_stage(7, ["python", "src/5_3_run_sample_level_mahalanobis.py",
+                       "--normal-path", "data/press_data_normal_with_idle.csv",
+                       "--fault-path", "data/outlier_data.csv",
+                       "--output-dir", "outputs/5_3_sample_level_cv",
+                       "--feature-set", "raw_diff", "--agg", "mean", "--agg-k", "3",
+                       "--n-splits", "5", "--repeats", "5", "--seed", "0",
+                       "--covariance", "ledoitwolf",
+                       "--threshold-modes", "normal_quantile", "--normal-quantile", "0.9999"],
+                   reuse_check=[root / "outputs/5_3_sample_level_cv/sample_cv_comparison.csv",
+                                root / "outputs/5_3_sample_level_cv/sample_cv_event_details.csv"])
+
+        heavy_ok = not args.skip_heavy_analysis
+
+        # 8: 6 ensemble
+        exec_stage(8, ["python", "src/6_compare_three_detectors.py",
+                       "--normal-path", "data/press_data_normal_with_idle.csv",
+                       "--fault-path", "data/outlier_data.csv",
+                       "--window-1.0", "result/modeling_dataset_1.0_0.1",
+                       "--window-0.5", "result/modeling_dataset_0.5_0.1",
+                       "--output-dir", "outputs/6_three_detector_ensemble",
+                       "--n-splits", "5", "--repeats", "5", "--seed", "0",
+                       "--window-threshold-mode", "normal_quantile", "--window-quantile", "0.9999",
+                       "--window-k", "2", "--window-covariance", "ledoitwolf",
+                       "--sample-threshold-mode", "normal_quantile", "--sample-quantile", "0.9999",
+                       "--sample-agg-k", "3", "--sample-agg", "mean",
+                       "--sample-feature-set", "raw_diff", "--sample-covariance", "ledoitwolf"],
+                   reuse_check=[root / "outputs/6_three_detector_ensemble/ensemble_summary.csv",
+                                root / "outputs/6_three_detector_ensemble/ensemble_event_details.csv"])
+
+        if heavy_ok:
+            # 9: 7 Isolation Forest
+            exec_stage(9, ["python", "src/7_isolation_forest_baseline.py",
+                           "--input", "result/modeling_dataset_1.0_0.1/model_windows.csv",
+                           "--output-dir", "outputs/7_isolation_forest_baseline",
+                           "--n-estimators", "300", "--threshold-mode", "f1",
+                           "--k-consecutive", "1", "--seeds", "1", "--seed-start", "42"],
+                       reuse_check=[root / "outputs/7_isolation_forest_baseline/summary.csv",
+                                    root / "outputs/7_isolation_forest_baseline/test_scores.csv"])
+
+            # 10: 8 FP/FN
+            exec_stage(10, ["python", "src/8_fp_fn_analysis.py",
+                            "--normal-path", "data/press_data_normal_with_idle.csv",
+                            "--fault-path", "data/outlier_data.csv",
+                            "--window-1.0", "result/modeling_dataset_1.0_0.1",
+                            "--window-0.5", "result/modeling_dataset_0.5_0.1",
+                            "--output-dir", "outputs/8_fp_fn_analysis",
+                            "--n-splits", "5", "--repeats", "5", "--seed", "0",
+                            "--window-threshold-mode", "normal_quantile", "--window-quantile", "0.9999",
+                            "--window-k", "2", "--window-covariance", "ledoitwolf",
+                            "--sample-threshold-mode", "normal_quantile", "--sample-quantile", "0.9999",
+                            "--sample-agg-k", "3", "--sample-agg", "mean",
+                            "--sample-feature-set", "raw_diff", "--sample-covariance", "ledoitwolf"],
+                       reuse_check=[root / "outputs/8_fp_fn_analysis/fn_event_summary.csv",
+                                    root / "outputs/8_fp_fn_analysis/fp_windows_1.0s.csv"])
+
+            # 11: FN 시각화(9_) + 변수 영향 분석(10_) — 보조 분석이며 스트리밍 detector 입력은 아님.
+            # 두 스크립트를 한 단계로 묶어 같은 진행 카드에서 순서대로 실행한다.
+            exec_stage(11, [
+                ["python", "src/9_visualize_fn_events.py",
+                 "--normal-path", "data/press_data_normal_with_idle.csv",
+                 "--fault-path", "data/outlier_data.csv",
+                 "--window-1.0", "result/modeling_dataset_1.0_0.1",
+                 "--window-0.5", "result/modeling_dataset_0.5_0.1",
+                 "--output-dir", "outputs/9_fn_visualization",
+                 "--n-splits", "5",
+                 "--window-threshold-mode", "normal_quantile", "--window-quantile", "0.9999",
+                 "--window-k", "2", "--window-covariance", "ledoitwolf",
+                 "--sample-threshold-mode", "normal_quantile", "--sample-quantile", "0.9999",
+                 "--sample-agg-k", "3", "--sample-agg", "mean",
+                 "--sample-feature-set", "raw_diff", "--sample-covariance", "ledoitwolf"],
+                ["python", "src/10_variable_effect_analysis.py",
+                 "--normal-path", "data/press_data_normal_with_idle.csv",
+                 "--fault-path", "data/outlier_data.csv",
+                 "--window-0.5", "result/modeling_dataset_0.5_0.1/model_windows.csv",
+                 "--window-1.0", "result/modeling_dataset_1.0_0.1/model_windows.csv",
+                 "--fp-output-dir", "outputs/8_fp_fn_analysis",
+                 "--output-dir", "outputs/10_variable_effect_analysis"],
+            ], reuse_check=[root / "outputs/10_variable_effect_analysis/variable_effect_summary.csv",
+                            root / "outputs/9_fn_visualization"], require_marker=True)
+        else:
+            for n in (9, 10, 11):
+                board.skip(stage_status_idx[n], "heavy analysis 생략 (--skip-heavy-analysis)")
+
+    except Exception as exc:
+        print(f"[ERROR] Pipeline failed: {exc}")
+        board.save_report(output_dir / "pipeline_stage_report.csv")
+        # Keep the window open so the failed stage / log is visible.
+        plt.ioff()
+        plt.show()
+        raise
+
+    board.save_report(output_dir / "pipeline_stage_report.csv")
+
+    # ------------------------------------------------------------
+    # FINAL DEPLOYABLE MODEL: train/calibrate after 1~11 completed.
+    # This is the model used by the causal row-by-row replay.
+    # (오래 걸리는 계산도 별도 스레드로 돌리고 현황판은 계속 갱신)
+    # ------------------------------------------------------------
+    set_stage_state(stage_status_idx[12], "running", "최종 모델 준비: 정상 데이터 전처리 중 ...")
+
+    normal_full = board.run_with_pump(
+        lambda: preprocess_for_calibration(
+            pd.read_csv(root / "data/press_data_normal_with_idle.csv"), "normal"
+        )
+    )
+    fault_full = pd.read_csv(fault_path)
+    fault_raw = fault_full.copy()
+
+    demo_normal = select_demo_normal(normal_full, args.demo_normal_samples)
+    demo_idle = select_demo_idle(normal_full, args.demo_idle_samples)
+    excluded_demo_groups = set(demo_normal["group_id"].astype(str)) | set(demo_idle["group_id"].astype(str))
+    train_df, calibration_df = build_calibration_split(
+        normal_full, excluded_demo_groups, args.calibration_fraction, args.seed
+    )
+    board.note(f"학습 {len(train_df):,}행 / 보정 {len(calibration_df):,}행 분리 완료")
+
+    detector = StreamingDetector(
+        win1_size=PIPELINE_CONFIG["win1_size"],
+        win05_size=PIPELINE_CONFIG["win05_size"],
+        sample_agg_k=PIPELINE_CONFIG["sample_agg_k"],
+        persistence_p=PIPELINE_CONFIG["persistence_p"],
+        gap_threshold_sec=GAP_THRESHOLD_SEC,
+        quantile_threshold=args.quantile,
+        random_state=args.seed,
+    )
+    pipeline = StreamingPipeline(detector, GAP_THRESHOLD_SEC)
+
+    # Fit model before streaming; this is the explicit deployment-model step.
+    board.note("최종 모델 학습 · 기준값 보정 중 ...")
+    fit_info = board.run_with_pump(
+        lambda: detector.fit(normal_df=train_df, calibration_df=calibration_df)
+    )
+
+    print(f"[DEPLOY] train={fit_info['train_rows']:,} calibration={fit_info['calibration_rows']:,}")
+    print(f"[DEPLOY] thresholds={fit_info['thresholds']}")
+    board.note(f"최종 모델 READY  thresholds={fit_info['thresholds']}")
+
+    # Create demo stream ONLY as an input source. Each row still goes through
+    # StreamingPipeline.process(), so runtime preprocessing is not pre-applied.
+    # normal -> idle -> normal -> fault 를 이어 붙인다.
+    #  - continuous(기본): 블록 사이를 공칭 샘플 간격으로만 띄워 gap(0.5s) 규칙에 걸리지 않게 함
+    #    -> 실제로 timestamp 가 끊긴 곳에서만 reset, 정상 이력이 이어진 채 fault 로 전환되는 모습을 시연
+    #  - gap: 예전 방식 (블록마다 인위적 2초 gap -> 매번 reset)
+    nominal_dt = nominal_interval(demo_normal["TimeStamp"])
+    join_gap = nominal_dt if args.demo_join_mode == "continuous" else args.demo_join_gap
+    half = len(demo_normal) // 2
+    if half >= 1:
+        blocks = [("normal", demo_normal.iloc[:half]), ("idle", demo_idle),
+                  ("normal", demo_normal.iloc[half:]), ("fault", fault_raw)]
+    else:
+        blocks = [("normal", demo_normal), ("idle", demo_idle), ("fault", fault_raw)]
+    demo_df = build_demo_stream(blocks, join_gap_sec=join_gap)
+    # 재생 속도: 기본은 데이터 timestamp 속도 그대로(예: 0.1s 간격 -> 10 Hz) x --replay-speed
+    fps_eff = float(args.fps) if args.fps else args.replay_speed / nominal_dt
+    replay_x = fps_eff * nominal_dt
+
+    # ------------------------------------------------------------
+    # Prepare stage 12 visual state.
+    # ------------------------------------------------------------
+    model_files = save_final_model(root / "outputs/final_model", detector, fit_info, PIPELINE_CONFIG, args,
+                                  root=root, inputs=[root / "data/press_data_normal_with_idle.csv", fault_path])
+    th = fit_info["thresholds"]
+    board.finish(
+        stage_status_idx[12],
+        parts=["최종 모델 학습 · 보정 완료", f"학습 {fit_info['train_rows']:,}행 / 보정 {fit_info['calibration_rows']:,}행",
+               f"q={detector.quantile:.4f}  OR_3 + P{PIPELINE_CONFIG['persistence_p']}"],
+        details=[f"threshold  sample {th['sample']:.2f}", f"           0.5s   {th['win05']:.2f}",
+                 f"           1.0s   {th['win1']:.2f}", "",
+                 "저장: outputs/final_model/"] + [f"  {x}" for x in model_files],
+    )
+    # ------------------------------------------------------------
+    # 파이프라인 창 마무리: 시각화/결과를 확인한 뒤 2번 창(실시간 추론)으로 이동
+    # ------------------------------------------------------------
+    board.set_ready()
+    start_ui["ready"] = True
+    start_btn.label.set_text("실시간 추론 시작 →  (클릭 / Enter)")
+    start_btn.label.set_color(C["bg"])
+    start_btn.color = C["green"]
+    start_btn.hovercolor = "#27ae60"
+    start_btn.ax.set_facecolor(C["green"])
+    fig_p.canvas.draw_idle()
+
+    # 키 입력은 창에 포커스가 있어야 받으므로 포커스를 가져오고(Tk), 터미널에서 Enter 를 눌러도 이동되게 한다.
+    try:
+        _win = fig_p.canvas.manager.window
+        _win.lift()
+        _win.focus_force()
+    except Exception:
+        pass
+    if sys.stdin is not None and sys.stdin.isatty():
+        def _wait_terminal_enter():
+            try:
+                if sys.stdin.readline() != "":      # EOF 면 무시
+                    start_ui["go"] = True
+            except Exception:
+                pass
+        threading.Thread(target=_wait_terminal_enter, daemon=True).start()
+        print("[READY] 파이프라인 완료 - 창의 버튼 클릭 / 창에서 Enter / 이 터미널에서 Enter 중 하나로 실시간 추론 창으로 이동합니다.")
+    t_ready = time.time()
+    while not start_ui["go"] and plt.fignum_exists(fig_p.number):
+        if args.auto_start > 0 and time.time() - t_ready >= args.auto_start:
+            break
+        plt.pause(0.1)
+    start_btn.label.set_text("실시간 추론 창 여는 중 ...")
+    try:
+        fig_p.canvas.draw()
+        fig_p.canvas.flush_events()
+    except Exception:
+        pass
+    try:
+        fig_p.savefig(output_dir / "pipeline_dashboard.png", dpi=110, facecolor=C["bg"])
+        print(f"[SAVED] {output_dir / 'pipeline_dashboard.png'}")
+    except Exception:
+        pass
+    plt.close(fig_p)
+
+    # ------------------------------------------------------------
+    # 2번 창: 실시간 추론 (CSV replay)
+    # ------------------------------------------------------------
     fig = plt.figure(figsize=(20, 11), facecolor=C["bg"])
     try:
-        fig.canvas.manager.set_window_title("KAMPact - Full Pipeline + Real-time Inference")
+        fig.canvas.manager.set_window_title("KAMPact - 2) Real-time Inference (CSV replay)")
     except Exception:
         pass
 
@@ -770,7 +1261,7 @@ def main() -> None:
                 fontsize=23, fontweight="bold", color=C["text"], va="center")
     ax_hdr.text(
         0.002, 0.24,
-        "프레스 이상 탐지  |  1~11 파이프라인 실행  →  12 최종 모델  →  13 인과 스트리밍 추론 (CSV replay)",
+        "프레스 이상 탐지  |  13 인과 스트리밍 추론 (CSV replay)  ·  파이프라인 1~12 완료",
         transform=ax_hdr.transAxes, fontsize=9.5, color=C["muted"],
         va="center", fontname=KOREAN_FONT or "DejaVu Sans",
     )
@@ -891,56 +1382,36 @@ def main() -> None:
                         alpha=0.10, linewidth=0, step="mid"
                     ))
 
-    # Pipeline panel with 12 steps (요약 도트 + 소요 시간만 표시. 자세한 내용은 왼쪽 현황판)
-    style_card(ax_pipe, "데이터 파이프라인", "실제 실행 상태")
-    n_steps = len(PREPROCESS_STEPS)
-    step_ys = np.linspace(0.94, 0.06, n_steps)
-    ax_pipe.plot([0.055, 0.055], [step_ys[-1], step_ys[0]], transform=ax_pipe.transAxes,
-                 color=C["dim"], lw=2, zorder=1)
-    step_dots = ax_pipe.scatter([0.055] * n_steps, step_ys, s=155,
-                                transform=ax_pipe.transAxes, c=[C["dim"]] * n_steps,
-                                edgecolors=C["panel"], linewidths=1.5, zorder=3)
-    step_nums, step_labels, step_detail_texts = [], [], []
-    for i, (label, y) in enumerate(zip(PREPROCESS_STEPS, step_ys)):
-        step_nums.append(ax_pipe.text(0.055, y, str(i + 1), transform=ax_pipe.transAxes,
-                                      ha="center", va="center", fontsize=6.5, fontweight="bold",
-                                      color=C["muted"], zorder=4,
-                                      fontname=KOREAN_FONT or "DejaVu Sans"))
-        step_labels.append(ax_pipe.text(0.115, y + 0.010, label, transform=ax_pipe.transAxes,
-                                        ha="left", va="center", fontsize=7.3, fontweight="bold",
-                                        color=C["muted"], fontname=KOREAN_FONT or "DejaVu Sans"))
-        step_detail_texts.append(ax_pipe.text(0.115, y - 0.014, "", transform=ax_pipe.transAxes,
-                                              ha="left", va="center", fontsize=6.6,
-                                              color=C["muted"], fontname=KOREAN_FONT or "DejaVu Sans"))
-
-    def pipe_cb(statuses, shorts):
-        """StageBoard -> 가운데 위 '데이터 파이프라인' 카드 색/소요시간 갱신."""
-        colors = []
-        palette = {"done": C["green"], "reused": C["cyan"], "running": C["amber"],
-                   "failed": C["red"], "skipped": C["muted"]}
-        for i, (st, short) in enumerate(zip(statuses, shorts)):
-            col = palette.get(st, C["dim"])
-            colors.append(col)
-            step_nums[i].set_color(C["muted"] if st == "pending" else C["bg"])
-            step_labels[i].set_color(C["muted"] if st == "pending" else C["text"] if st in ("done", "reused") else col)
-            step_detail_texts[i].set_text(short)
-            step_detail_texts[i].set_color(col if st == "running" else C["muted"])
-        step_dots.set_facecolor(colors)
+    # 최종 모델 / 입력 설정 요약 카드 (파이프라인 단계 목록은 1번 창에 있으므로 여기서는 요약만)
+    style_card(ax_pipe, "최종 모델 / 입력 설정", "1번 창 파이프라인 요약")
+    model_text = mono_text(ax_pipe, 0.06, 0.95, size=7.9)
+    _th = fit_info["thresholds"]
+    model_text.set_text(
+        "\n".join(board.pipeline_summary_lines()) + "\n" + "-" * 34 + "\n"
+        f"앙상블        OR_3 + P{PIPELINE_CONFIG['persistence_p']}\n"
+        f"분위수        q={detector.quantile:.4f}\n"
+        f"윈도우        0.5초 / 1.0초 + 샘플 mean{PIPELINE_CONFIG['sample_agg_k']}\n"
+        f"공분산        Ledoit-Wolf\n"
+        f"학습 / 보정   {fit_info['train_rows']:,} / {fit_info['calibration_rows']:,}\n"
+        f"기준값        샘플 {_th['sample']:.2f}\n"
+        f"              0.5초 {_th['win05']:.2f}\n"
+        f"              1.0초 {_th['win1']:.2f}\n"
+        f"입력          CSV replay {fps_eff:.0f}Hz (x{replay_x:.1f})\n"
+        "처리          causal / row-by-row\n"
+        "look-ahead    없음"
+    )
 
     style_card(ax_live, "스트림 입력", "CSV replay · 현재 행")
-    live_text = mono_text(ax_live, 0.05, 0.94, size=8.4)
+    live_text = mono_text(ax_live, 0.05, 0.94, size=7.8)
 
     style_card(ax_event, "이벤트 / 시스템", "파이프라인 상태")
-    event_text = mono_text(ax_event, 0.05, 0.94, size=8.25)
-    delay_label = ax_event.text(0.5, 0.33, "탐지 지연", transform=ax_event.transAxes,
+    event_text = mono_text(ax_event, 0.05, 0.94, size=7.8)
+    delay_label = ax_event.text(0.5, 0.20, "탐지 지연", transform=ax_event.transAxes,
                                 ha="center", va="center", fontsize=8, fontweight="bold",
                                 color=C["muted"], fontname=KOREAN_FONT or "DejaVu Sans")
-    delay_text = ax_event.text(0.5, 0.17, "-", transform=ax_event.transAxes,
-                               ha="center", va="center", fontsize=26, fontweight="bold",
+    delay_text = ax_event.text(0.5, 0.09, "-", transform=ax_event.transAxes,
+                               ha="center", va="center", fontsize=22, fontweight="bold",
                                color=C["muted"], fontname=KOREAN_FONT or "DejaVu Sans")
-    # 단계 실행 중에는 로그 패널로 쓰이므로 실시간 추론 시작 전까지 숨김
-    delay_label.set_visible(False)
-    delay_text.set_visible(False)
 
     style_card(ax_det, "탐지", "점수 / 기준값")
     ax_det.set_xlim(0, GAUGE_CAP)
@@ -988,302 +1459,14 @@ def main() -> None:
     for artist in feature_artists.values():
         artist.set_visible(False)
 
-    # ------------------------------------------------------------
-    # 단계 실행 현황판 (왼쪽 차트 영역 위에 겹쳐 표시)
-    #   - 왼쪽 큰 표 : 단계별 상태 / 진행률 바 / 경과·이전 실행 시간 / 지금 하는 일·결과 요약
-    #   - 가운데 'live' 카드 : 현재 실행 단계 상세 (스크립트, 경과, 진행률, 로그 줄 수)
-    #   - 가운데 'event' 카드 : 스크립트 출력 로그 (최근)
-    #   - 오른쪽 'feat' 카드 : 마지막 완료 단계의 실제 결과 상세 (실패 시 에러 로그)
-    # ------------------------------------------------------------
-    p_top, p_bot = ax_vib.get_position(), ax_strip.get_position()
-    ax_board = fig.add_axes([p_top.x0, p_bot.y0, p_top.width, p_top.y1 - p_bot.y0])
-    timing_store = TimingStore(output_dir / "stage_timing.json")
-    board = StageBoard(
-        fig, ax_board,
-        panels={"cur": ax_live, "log": ax_event, "detail": ax_feat},
-        labels=stage_labels, colors=C, font=KOREAN_FONT, mono=MONO_FONT,
-        timing=timing_store, overall_bar=progress_bar, overall_text=hdr_overall,
-        pipe_cb=pipe_cb, n_progress=len(stage_labels) - 1,
-    )
-    fig.canvas.mpl_connect(
-        "key_press_event",
-        lambda ev: board.toggle_board() if getattr(ev, "key", None) == "p" else None,
-    )
-
-    stage_status_idx = {n: n - 1 for n in range(1, 14)}
-
-    def set_stage_state(index: int, state: str, detail: str = ""):
-        """기존 호출부 호환용 래퍼 (12단계 실시간 추론 표시에 사용)."""
-        if state == "running":
-            board.begin(index, note=detail)
-        elif state == "done":
-            board.finish(index, parts=[detail] if detail else [])
-        else:
-            board.fail(index, detail)
-
-    # Show empty dashboard before executing actual stages.
-    plt.ion()
-    plt.show(block=False)
-    fig.canvas.draw_idle()
-    fig.canvas.flush_events()
-
-    # ------------------------------------------------------------
-    # ACTUAL PROJECT PIPELINE: 1~11
-    # ------------------------------------------------------------
-    stage_commands = {
-        1: ["python", "src/1_visualize_normal_outlier.py"],
-        3: ["python", "src/3_time_structure_analysis.py"],
-        4: ["python", "src/4_make_window_dataset.py", "--window-sec", "1.0", "--step-sec", "0.1",
-            "--output-dir", "result/modeling_dataset_1.0_0.1"],
-        5: ["python", "src/4_make_window_dataset.py", "--window-sec", "0.5", "--step-sec", "0.1",
-            "--output-dir", "result/modeling_dataset_0.5_0.1"],
-    }
-
-    def exec_stage(display_no: int, commands=None, reuse_check: list[Path] | None = None,
-                   extra_env: dict[str, str] | None = None, func=None):
-        """한 단계를 실행하고 현황판에 실시간 로그/진행률/결과를 표시.
-
-        commands : 단일 명령(list[str]) 또는 여러 명령(list[list[str]])
-        func     : 외부 스크립트 대신 파이썬 함수를 실행할 때 (예: Idle 라벨링)
-        """
-        idx = stage_status_idx[display_no]
-        if commands and isinstance(commands[0], str):
-            commands = [commands]
-
-        if args.reuse_results and reuse_check and all(p.exists() for p in reuse_check):
-            parts = [p.strip() for p in make_stage_summary(root, display_no).split("|")]
-            board.finish(idx, parts=parts, details=stage_details(root, display_no), status="reused")
-            return
-
-        script = " + ".join(Path(c[1]).name for c in commands) if commands else "(내장 로직)"
-        board.begin(idx, script=script)
-        try:
-            if func is not None:
-                board.note("내장 로직 실행 중 ...")
-                board.run_with_pump(func)
-            else:
-                for cmd in commands:
-                    cmd = list(cmd)
-                    if cmd and cmd[0] == "python":
-                        cmd[0] = str(Path(sys.executable))
-                    rc, lines = run_command_live(root, cmd, extra_env,
-                                                 on_update=board.feed, wait=plt.pause)
-                    if rc != 0:
-                        raise RuntimeError(f"종료 코드 {rc}: {' '.join(Path(c).name for c in cmd[:2])}")
-        except Exception as exc:
-            board.fail(idx, str(exc).splitlines()[0][:80], tail=list(board.log_tail)[-22:])
-            raise
-        parts = [p.strip() for p in make_stage_summary(root, display_no).split("|")]
-        board.finish(idx, parts=parts, details=stage_details(root, display_no))
-
-    try:
-        # 1
-        exec_stage(1, stage_commands[1],
-                   reuse_check=[root / "data/press_data_normal.csv", root / "data/outlier_data.csv"],
-                   extra_env={"MPLBACKEND": "Agg"})
-
-        # 2 (actual same logic, saved under data/)
-        exec_stage(2, func=lambda: execute_idle_classification(root))
-
-        # 3
-        exec_stage(3, stage_commands[3],
-                   reuse_check=[root / "result/time_structure_analysis"])
-
-        # 4 and 5 are the two actual calls to script 4.
-        exec_stage(4, stage_commands[4],
-                   reuse_check=[root / "result/modeling_dataset_1.0_0.1/model_windows.csv"])
-        exec_stage(5, stage_commands[5],
-                   reuse_check=[root / "result/modeling_dataset_0.5_0.1/model_windows.csv"])
-
-        # 6: 5_2 Window Mahalanobis CV
-        exec_stage(6, ["python", "src/5_2_run_mahalanobis.py",
-                       "--multiscale", "result/modeling_dataset_1.0_0.1", "result/modeling_dataset_0.5_0.1",
-                       "--output-dir", "outputs/5_2_mahalanobis_cv",
-                       "--n-splits", "5", "--repeats", "5", "--seed", "0",
-                       "--covariance", "ledoitwolf",
-                       "--threshold-modes", "normal_quantile", "--normal-quantile", "0.9999",
-                       "--k-consecutive", "1"],
-                   reuse_check=[root / "outputs/5_2_mahalanobis_cv/cv_comparison.csv",
-                                root / "outputs/5_2_mahalanobis_cv/cv_event_details.csv"])
-
-        # 7: 5_3 Sample Mahalanobis CV
-        exec_stage(7, ["python", "src/5_3_run_sample_level_mahalanobis.py",
-                       "--normal-path", "data/press_data_normal_with_idle.csv",
-                       "--fault-path", "data/outlier_data.csv",
-                       "--output-dir", "outputs/5_3_sample_level_cv",
-                       "--feature-set", "raw_diff", "--agg", "mean", "--agg-k", "3",
-                       "--n-splits", "5", "--repeats", "5", "--seed", "0",
-                       "--covariance", "ledoitwolf",
-                       "--threshold-modes", "normal_quantile", "--normal-quantile", "0.9999"],
-                   reuse_check=[root / "outputs/5_3_sample_level_cv/sample_cv_comparison.csv",
-                                root / "outputs/5_3_sample_level_cv/sample_cv_event_details.csv"])
-
-        heavy_ok = not args.skip_heavy_analysis
-
-        # 8: 6 ensemble
-        exec_stage(8, ["python", "src/6_compare_three_detectors.py",
-                       "--normal-path", "data/press_data_normal_with_idle.csv",
-                       "--fault-path", "data/outlier_data.csv",
-                       "--window-1.0", "result/modeling_dataset_1.0_0.1",
-                       "--window-0.5", "result/modeling_dataset_0.5_0.1",
-                       "--output-dir", "outputs/6_three_detector_ensemble",
-                       "--n-splits", "5", "--repeats", "5", "--seed", "0",
-                       "--window-threshold-mode", "normal_quantile", "--window-quantile", "0.9999",
-                       "--window-k", "2", "--window-covariance", "ledoitwolf",
-                       "--sample-threshold-mode", "normal_quantile", "--sample-quantile", "0.9999",
-                       "--sample-agg-k", "3", "--sample-agg", "mean",
-                       "--sample-feature-set", "raw_diff", "--sample-covariance", "ledoitwolf"],
-                   reuse_check=[root / "outputs/6_three_detector_ensemble/ensemble_summary.csv",
-                                root / "outputs/6_three_detector_ensemble/ensemble_event_details.csv"])
-
-        if heavy_ok:
-            # 9: 7 Isolation Forest
-            exec_stage(9, ["python", "src/7_isolation_forest_baseline.py",
-                           "--input", "result/modeling_dataset_1.0_0.1/model_windows.csv",
-                           "--output-dir", "outputs/7_isolation_forest_baseline",
-                           "--n-estimators", "300", "--threshold-mode", "f1",
-                           "--k-consecutive", "1", "--seeds", "1", "--seed-start", "42"],
-                       reuse_check=[root / "outputs/7_isolation_forest_baseline/summary.csv",
-                                    root / "outputs/7_isolation_forest_baseline/test_scores.csv"])
-
-            # 10: 8 FP/FN
-            exec_stage(10, ["python", "src/8_fp_fn_analysis.py",
-                            "--normal-path", "data/press_data_normal_with_idle.csv",
-                            "--fault-path", "data/outlier_data.csv",
-                            "--window-1.0", "result/modeling_dataset_1.0_0.1",
-                            "--window-0.5", "result/modeling_dataset_0.5_0.1",
-                            "--output-dir", "outputs/8_fp_fn_analysis",
-                            "--n-splits", "5", "--repeats", "5", "--seed", "0",
-                            "--window-threshold-mode", "normal_quantile", "--window-quantile", "0.9999",
-                            "--window-k", "2", "--window-covariance", "ledoitwolf",
-                            "--sample-threshold-mode", "normal_quantile", "--sample-quantile", "0.9999",
-                            "--sample-agg-k", "3", "--sample-agg", "mean",
-                            "--sample-feature-set", "raw_diff", "--sample-covariance", "ledoitwolf"],
-                       reuse_check=[root / "outputs/8_fp_fn_analysis/fn_event_summary.csv",
-                                    root / "outputs/8_fp_fn_analysis/fp_windows_1.0s.csv"])
-
-            # 11: FN 시각화(9_) + 변수 영향 분석(10_) — 보조 분석이며 스트리밍 detector 입력은 아님.
-            # 두 스크립트를 한 단계로 묶어 같은 진행 카드에서 순서대로 실행한다.
-            exec_stage(11, [
-                ["python", "src/9_visualize_fn_events.py",
-                 "--normal-path", "data/press_data_normal_with_idle.csv",
-                 "--fault-path", "data/outlier_data.csv",
-                 "--window-1.0", "result/modeling_dataset_1.0_0.1",
-                 "--window-0.5", "result/modeling_dataset_0.5_0.1",
-                 "--output-dir", "outputs/9_fn_visualization",
-                 "--n-splits", "5",
-                 "--window-threshold-mode", "normal_quantile", "--window-quantile", "0.9999",
-                 "--window-k", "2", "--window-covariance", "ledoitwolf",
-                 "--sample-threshold-mode", "normal_quantile", "--sample-quantile", "0.9999",
-                 "--sample-agg-k", "3", "--sample-agg", "mean",
-                 "--sample-feature-set", "raw_diff", "--sample-covariance", "ledoitwolf"],
-                ["python", "src/10_variable_effect_analysis.py",
-                 "--normal-path", "data/press_data_normal_with_idle.csv",
-                 "--fault-path", "data/outlier_data.csv",
-                 "--window-0.5", "result/modeling_dataset_0.5_0.1/model_windows.csv",
-                 "--window-1.0", "result/modeling_dataset_1.0_0.1/model_windows.csv",
-                 "--fp-output-dir", "outputs/8_fp_fn_analysis",
-                 "--output-dir", "outputs/10_variable_effect_analysis"],
-            ], reuse_check=[root / "outputs/10_variable_effect_analysis/variable_effect_summary.csv"])
-        else:
-            for n in (9, 10, 11):
-                board.skip(stage_status_idx[n], "heavy analysis 생략 (--skip-heavy-analysis)")
-
-    except Exception as exc:
-        print(f"[ERROR] Pipeline failed: {exc}")
-        board.save_report(output_dir / "pipeline_stage_report.csv")
-        # Keep the window open so the failed stage / log is visible.
-        plt.ioff()
-        plt.show()
-        raise
-
-    board.save_report(output_dir / "pipeline_stage_report.csv")
-
-    # ------------------------------------------------------------
-    # FINAL DEPLOYABLE MODEL: train/calibrate after 1~11 completed.
-    # This is the model used by the causal row-by-row replay.
-    # (오래 걸리는 계산도 별도 스레드로 돌리고 현황판은 계속 갱신)
-    # ------------------------------------------------------------
-    set_stage_state(stage_status_idx[12], "running", "최종 모델 준비: 정상 데이터 전처리 중 ...")
-
-    normal_full = board.run_with_pump(
-        lambda: preprocess_for_calibration(
-            pd.read_csv(root / "data/press_data_normal_with_idle.csv"), "normal"
-        )
-    )
-    fault_full = pd.read_csv(fault_path)
-    fault_raw = fault_full.copy()
-
-    demo_normal = select_demo_normal(normal_full, args.demo_normal_samples)
-    demo_idle = select_demo_idle(normal_full, args.demo_idle_samples)
-    excluded_demo_groups = set(demo_normal["group_id"].astype(str)) | set(demo_idle["group_id"].astype(str))
-    train_df, calibration_df = build_calibration_split(
-        normal_full, excluded_demo_groups, args.calibration_fraction, args.seed
-    )
-    board.note(f"학습 {len(train_df):,}행 / 보정 {len(calibration_df):,}행 분리 완료")
-
-    detector = StreamingDetector(
-        win1_size=PIPELINE_CONFIG["win1_size"],
-        win05_size=PIPELINE_CONFIG["win05_size"],
-        sample_agg_k=PIPELINE_CONFIG["sample_agg_k"],
-        persistence_p=PIPELINE_CONFIG["persistence_p"],
-        gap_threshold_sec=GAP_THRESHOLD_SEC,
-        quantile_threshold=args.quantile,
-        random_state=args.seed,
-    )
-    pipeline = StreamingPipeline(detector, GAP_THRESHOLD_SEC)
-
-    # Fit model before streaming; this is the explicit deployment-model step.
-    board.note("최종 모델 학습 · 기준값 보정 중 ...")
-    fit_info = board.run_with_pump(
-        lambda: detector.fit(normal_df=train_df, calibration_df=calibration_df)
-    )
     for line in threshold_lines:
         line.set_visible(True)
     threshold_text.set_visible(True)
-
-    print(f"[DEPLOY] train={fit_info['train_rows']:,} calibration={fit_info['calibration_rows']:,}")
-    print(f"[DEPLOY] thresholds={fit_info['thresholds']}")
-    board.note(f"최종 모델 READY  thresholds={fit_info['thresholds']}")
-
-    # Create demo stream ONLY as an input source. Each row still goes through
-    # StreamingPipeline.process(), so runtime preprocessing is not pre-applied.
-    # normal -> idle -> normal -> fault 를 이어 붙인다.
-    #  - continuous(기본): 블록 사이를 공칭 샘플 간격으로만 띄워 gap(0.5s) 규칙에 걸리지 않게 함
-    #    -> 실제로 timestamp 가 끊긴 곳에서만 reset, 정상 이력이 이어진 채 fault 로 전환되는 모습을 시연
-    #  - gap: 예전 방식 (블록마다 인위적 2초 gap -> 매번 reset)
-    nominal_dt = nominal_interval(demo_normal["TimeStamp"])
-    join_gap = nominal_dt if args.demo_join_mode == "continuous" else args.demo_join_gap
-    half = len(demo_normal) // 2
-    if half >= 1:
-        blocks = [("normal", demo_normal.iloc[:half]), ("idle", demo_idle),
-                  ("normal", demo_normal.iloc[half:]), ("fault", fault_raw)]
-    else:
-        blocks = [("normal", demo_normal), ("idle", demo_idle), ("fault", fault_raw)]
-    demo_df = build_demo_stream(blocks, join_gap_sec=join_gap)
-
-    # ------------------------------------------------------------
-    # Prepare stage 12 visual state.
-    # ------------------------------------------------------------
-    model_files = save_final_model(root / "outputs/final_model", detector, fit_info, PIPELINE_CONFIG, args)
-    th = fit_info["thresholds"]
-    board.finish(
-        stage_status_idx[12],
-        parts=["최종 모델 학습 · 보정 완료", f"학습 {fit_info['train_rows']:,}행 / 보정 {fit_info['calibration_rows']:,}행",
-               f"q={detector.quantile:.4f}  OR_3 + P{PIPELINE_CONFIG['persistence_p']}"],
-        details=[f"threshold  sample {th['sample']:.2f}", f"           0.5s   {th['win05']:.2f}",
-                 f"           1.0s   {th['win1']:.2f}", "",
-                 "저장: outputs/final_model/"] + [f"  {x}" for x in model_files],
-    )
-    board.begin(stage_status_idx[13], script="CSV replay", note="CSV replay 시작 (causal / row-by-row)")
-    board.enter_stream_mode()          # 현황판/로그 패널 숨기고 실시간 패널 복원 ('p' 키로 현황판 다시 보기)
-    delay_label.set_visible(True)
-    delay_text.set_visible(True)
     set_pill(pill_phase, "리플레이", C["blue"])
     set_pill(pill_truth, "-", C["muted"])
     set_pill(pill_det, "대기", C["muted"])
     progress_bar.set_facecolor(C["blue"])
-    hdr_overall.set_text("파이프라인 1~12 완료  ·  현황판 다시 보기: 'p' 키")
+    hdr_overall.set_text("PIPELINE 12/12 완료  ·  STREAMING 대기")
 
     # Shared streaming state.
     first_fault_time = None
@@ -1314,6 +1497,8 @@ def main() -> None:
 
     # Clear the feature table state only after the first stream row arrives.
     total_stream_frames = len(demo_df)
+    infer_ms_list: list[float] = []
+    replay_t = {"t0": None}
     stats = dict(normal_fp=0, idle_fp=0, fault_rows=0, fault_alarm=0, onset_idx=None, first_alarm_idx=None)
 
     def stream_update(frame_idx: int):
@@ -1324,12 +1509,17 @@ def main() -> None:
         source = str(row["block"])
         original_timestamp = row["orig_TimeStamp"]
 
+        if replay_t["t0"] is None:
+            replay_t["t0"] = time.time()
+        _t0 = time.perf_counter()
         record, result = pipeline.process(
             row,
             source=source,
             block=source,
             original_timestamp=original_timestamp,
         )
+        infer_ms = (time.perf_counter() - _t0) * 1000.0   # 행당 전처리+특징+탐지 처리 지연
+        infer_ms_list.append(infer_ms)
 
         timestamp = record["timestamp"]
         kind = str(record["kind"])
@@ -1469,22 +1659,21 @@ def main() -> None:
             f"유휴 {record['Idle']}   상태 {record['Equipment_state']}\n"
             f"세그먼트      {record['group_id']}\n"
             f"Gap           {record['gap_seconds']:.3f}초\n"
-            f"Segment reset {'예' if record['segment_reset'] else '아니오'}\n\n"
-            "실시간 처리\n"
-            "입력 1행 → 검증 → segment → Idle → 특징 → 탐지\n"
+            f"Segment reset {'예' if record['segment_reset'] else '아니오'}\n"
             f"진행          {frame_idx + 1}/{total_stream_frames}"
         )
 
         event_text.set_text(
             f"q={detector.quantile:.4f}  OR_3+P{detector.p}  mean{detector.sample_agg_k}\n"
-            f"CSV replay | causal | look-ahead 없음\n"
-            f"gap > {detector.gap_threshold_sec:.1f}s 일 때만 reset\n\n"
+            f"CSV replay {fps_eff:.0f}Hz (x{replay_x:.1f}) | causal\n"
+            f"gap > {detector.gap_threshold_sec:.1f}s 일 때만 reset\n"
             f"fault onset     {ts_str(first_fault_time) if first_fault_time is not None else '-'}\n"
             f"정상 오탐       {stats['normal_fp']}\n"
             f"Idle 오탐       {stats['idle_fp']}\n"
             f"Fault 탐지      {1 if stats['first_alarm_idx'] is not None else 0}/{1 if stats['onset_idx'] is not None else 0}"
             f"  (알람 {stats['fault_alarm']}/{stats['fault_rows']}행)\n"
-            f"현재 상태       {final_state}"
+            f"현재 상태       {final_state}\n"
+            f"추론 지연       {float(np.mean(infer_ms_list)):.1f} / p95 {float(np.percentile(infer_ms_list, 95)):.1f} ms"
         )
 
         if first_fault_time is not None and first_alarm_time is not None:
@@ -1510,6 +1699,7 @@ def main() -> None:
 
         log_rows.append({
             "stream_index": int(frame_idx),
+            "infer_ms": float(infer_ms),
             "source": record["source"], "block": record["block"], "kind": record["kind"],
             "TimeStamp": record["timestamp"], "orig_TimeStamp": record["orig_timestamp"],
             "ground_truth": int(record["ground_truth"]), "Idle": int(record["Idle"]),
@@ -1527,23 +1717,20 @@ def main() -> None:
             "state": "ALARM" if result["final_alarm"] else "WARNING" if result["or3_base"] else "정상",
             "active_detectors": ",".join(result["active_detectors"]),
         })
-        st13 = board.st[stage_status_idx[13]]
-        if st13["status"] == "running":
-            st13["log_frac"] = (frame_idx + 1) / total_stream_frames
-            st13["last"] = f"{frame_idx + 1:,}/{total_stream_frames:,}행 처리 · 상태 {final_state}"
+        hdr_overall.set_text(
+            f"PIPELINE 12/12 완료  ·  STREAMING {(frame_idx + 1) / total_stream_frames * 100:.0f}%"
+            f"  ({frame_idx + 1:,}/{total_stream_frames:,}행)")
+        progress_bar.set_width((frame_idx + 1) / total_stream_frames)
         if frame_idx == total_stream_frames - 1:
-            board.finish(stage_status_idx[13], parts=[
-                f"스트리밍 {total_stream_frames:,}행 완료",
-                f"정상 오탐 {stats['normal_fp']} · Idle 오탐 {stats['idle_fp']}",
-                f"Fault 탐지 {1 if stats['first_alarm_idx'] is not None else 0}/{1 if stats['onset_idx'] is not None else 0}"])
-        if ax_board.get_visible():
-            board.render()   # 'p' 키로 현황판을 띄운 상태에서도 최신 값 표시
+            hdr_overall.set_text(
+                f"PIPELINE 12/12 완료  ·  STREAMING 완료  ·  replay 경과 {time.time() - replay_t['t0']:.0f}s"
+                "  (추론 지연 아님)")
         return []
 
     plt.ioff()
     ani = animation.FuncAnimation(
         fig, stream_update, frames=len(demo_df),
-        interval=max(1, int(1000 / args.fps)), blit=False, repeat=False,
+        interval=max(1, int(1000 / fps_eff)), blit=False, repeat=False,
     )
 
     try:
@@ -1557,9 +1744,12 @@ def main() -> None:
             print("[WARN] No realtime log rows were produced.")
 
         # 12단계 완료 처리 후 단계별 리포트 갱신
-        if board.st[stage_status_idx[13]]["status"] != "done":
-            board.finish(stage_status_idx[13], parts=[f"스트리밍 {len(log_rows):,}행 처리 (중단)"])
-        board.save_report(output_dir / "pipeline_stage_report.csv")
+        report_rows = board.report_rows() + [dict(
+            stage=13, label=stage_labels[12],
+            status="done" if len(log_rows) == total_stream_frames else "stopped",
+            seconds=None if replay_t["t0"] is None else round(time.time() - replay_t["t0"], 2),
+            summary=f"스트리밍 {len(log_rows):,}행 · 소요시간 = replay 경과 (추론 지연 아님)", figures=0)]
+        pd.DataFrame(report_rows).to_csv(output_dir / "pipeline_stage_report.csv", index=False, encoding="utf-8-sig")
         metrics_df = events_df = None
         if log_rows:
             metrics_df, events_df = summarize_realtime(pd.DataFrame(log_rows), nominal_dt)
@@ -1571,7 +1761,7 @@ def main() -> None:
         # Final pipeline report for portfolio/demo use.
         report = output_dir / "pipeline_run_summary.txt"
         lines = ["KAMPact Full Pipeline Run", "=" * 80]
-        for row in board.report_rows():
+        for row in report_rows:
             sec = "-" if row["seconds"] is None else f"{row['seconds']:.1f}s"
             lines.append(f"{row['label']:<28} {row['status']:<8} {sec:>8}   {row['summary']}")
         lines += [

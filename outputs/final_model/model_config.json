@@ -8,7 +8,18 @@
   "covariance": "ledoitwolf",
   "seed": 0,
   "calibration_fraction": 0.2,
+  "metadata": {
+    "python": "3.11.9",
+    "numpy": "2.4.6",
+    "pandas": "3.0.6",
+    "sklearn": "1.9.1",
+    "code_commit": "a06913f",
+    "input_sha256_16": {
+      "press_data_normal_with_idle.csv": "7e67ab3dea1eb723",
+      "outlier_data.csv": "9fad8c238e63dba3"
+    }
+  },
   "train_rows": 12985,
   "calibration_rows": 3140,
-  "created_at": "2026-10-03T14:36:52"
+  "created_at": "2026-10-03T22:23:52"
 }
