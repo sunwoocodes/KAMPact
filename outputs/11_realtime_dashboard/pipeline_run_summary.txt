@@ -1,0 +1,44 @@
+KAMPact Full Pipeline Run
+================================================================================
+1  원본 시계열 분석                 done         1.7s   원본 시계열 분석 완료 | 정상/고장 센서 변동 확인
+2  Idle 라벨 생성                done         1.1s   Idle 라벨 생성 | 전체 20,000행 | Idle 3,049행
+3  시간 구조 / Segment           done         1.1s   timestamp gap / segment 분석 완료 | 산출물 7개
+4  1.0초 Window Dataset       done        16.9s   1.0초 Window dataset 완료 | 12,558개 window
+5  0.5초 Window Dataset       done        20.1s   0.5초 Window dataset 완료 | 14,966개 window
+6  Window Mahalanobis        done         4.7s   Window Mahalanobis CV 완료 | 설정 3개
+7  Sample Mahalanobis        done         2.8s   Sample-level Mahalanobis CV 완료 | 설정 1개
+8  3-Detector Ensemble       done        26.8s   3-Detector Ensemble 완료 | OR_3_P2  event 91.4% | delay 0.571s
+9  Isolation Forest          done         6.4s   Isolation Forest baseline 완료 | F1 0.3898
+10 FP / FN 분석                done        10.6s   FP/FN 분석 완료 | FN event 21건
+11 FN 시각화 / 변수 영향            done         9.4s   FN 시각화 + 변수 영향 분석 완료 | effect 16행
+12 최종 모델 학습 / 보정             done        10.4s   최종 모델 학습 · 보정 완료 | 학습 12,985행 / 보정 3,140행 | q=0.9999  OR_3 + P2
+13 스트리밍 추론 (CSV replay)      done        35.3s   스트리밍 148행 처리 (중단)
+
+Deployment train rows      : 12,985
+Deployment calibration rows: 3,140
+Deployment quantile         : 0.9999
+Deployment thresholds       : {'sample': 21.763479836543077, 'win05': 67.5011746172138, 'win1': 65.52940203030388}
+Streaming rows              : 148
+Fault onset                 : None
+First alarm                 : None
+
+Realtime metrics
+----------------------------------------
+streaming_rows                  148
+nominal_sampling_sec            0.1
+fault_events                    0
+fault_events_detected           0
+event_detection_rate            n/a
+first_detection_delay_sec       n/a
+first_detection_delay_samples   n/a
+normal_rows                     148
+normal_false_alarm_frames       0
+normal_false_alarm_rate         0.0000
+idle_rows                       0
+idle_false_alarm_frames         0
+idle_false_alarm_rate           n/a
+fault_rows                      0
+fault_alarm_frames              0
+fault_frame_recall              n/a
+final_alarm_frames              0
+max_score_ratio                 0.5413

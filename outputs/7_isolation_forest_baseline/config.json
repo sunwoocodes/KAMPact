@@ -8,7 +8,7 @@
   "threshold_mode": "f1",
   "normal_quantile": 0.995,
   "k_consecutive": 1,
-  "seeds": 5,
+  "seeds": 1,
   "seed_start": 42,
   "feature_cols": [
     "AI0_Vibration_mean",
