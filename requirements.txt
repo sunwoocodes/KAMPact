@@ -1,8 +1,10 @@
 # KAMPact
-# Tested with Python 3.11
+# Recommended: Python 3.11.x
+# Deployment metadata in outputs/final_model/model_config.json was generated with:
+#   Python 3.11.9 / NumPy 2.4.6 / Pandas 3.0.6 / scikit-learn 1.9.1
 
-numpy>=1.26,<3
-pandas>=2.2,<3
+numpy>=2.0,<3
+pandas>=2.2,<4
 scikit-learn>=1.4,<2
 matplotlib>=3.8,<4
 tqdm>=4.66,<5

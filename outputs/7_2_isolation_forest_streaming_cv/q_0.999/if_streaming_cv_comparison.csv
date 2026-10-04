@@ -1,0 +1,11 @@
+﻿Model,Quantile,Configuration,Event Detection,Delay (s),Sample F1,Normal FA Cycle,Idle FA Cycle,Normal FA Episodes/repeat
+Ledoit-Wolf Mahalanobis,0.999,1.0s Window,80.95 ± 0.00%,0.935 ± 0.010,0.7847 ± 0.0054,1.25 ± 0.41%,0.00 ± 0.00%,13.6
+Ledoit-Wolf Mahalanobis,0.999,0.5s Window,85.71 ± 0.00%,0.541 ± 0.025,0.8139 ± 0.0068,1.84 ± 0.86%,0.00 ± 0.00%,15.2
+Ledoit-Wolf Mahalanobis,0.999,Sample-level,85.71 ± 0.00%,0.551 ± 0.032,0.5812 ± 0.0051,2.11 ± 0.35%,0.00 ± 0.00%,16.0
+Ledoit-Wolf Mahalanobis,0.999,OR_3,100.00 ± 0.00%,0.365 ± 0.027,0.8569 ± 0.0104,3.25 ± 1.04%,0.00 ± 0.00%,29.6
+Ledoit-Wolf Mahalanobis,0.999,OR_3 + P2,95.24 ± 0.00%,0.495 ± 0.027,0.8507 ± 0.0056,1.64 ± 0.41%,0.00 ± 0.00%,15.4
+Isolation Forest,0.999,1.0s Window,70.48 ± 2.13%,1.148 ± 0.097,0.6222 ± 0.0308,1.57 ± 0.24%,0.68 ± 1.02%,13.0
+Isolation Forest,0.999,0.5s Window,73.33 ± 2.61%,0.740 ± 0.014,0.5665 ± 0.0145,2.97 ± 0.58%,0.45 ± 1.02%,20.0
+Isolation Forest,0.999,Sample-level,83.81 ± 2.61%,0.878 ± 0.035,0.4693 ± 0.0106,3.37 ± 0.26%,0.00 ± 0.00%,22.4
+Isolation Forest,0.999,OR_3,89.52 ± 2.13%,0.584 ± 0.076,0.6887 ± 0.0260,5.44 ± 0.16%,0.91 ± 1.48%,45.8
+Isolation Forest,0.999,OR_3 + P2,80.95 ± 3.37%,0.740 ± 0.067,0.6689 ± 0.0237,1.33 ± 0.38%,0.23 ± 0.51%,9.2

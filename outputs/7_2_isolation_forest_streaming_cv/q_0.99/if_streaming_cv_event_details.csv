@@ -1,0 +1,1051 @@
+﻿group_id,detected,delay_sec,n_samples,model,quantile,variant,repeat,seed
+fault_0,False,,4,mahalanobis,0.99,1.0s Window,0,0
+fault_1,True,0.9,50,mahalanobis,0.99,1.0s Window,0,0
+fault_10,False,,4,mahalanobis,0.99,1.0s Window,0,0
+fault_11,True,0.9,50,mahalanobis,0.99,1.0s Window,0,0
+fault_12,True,0.9,42,mahalanobis,0.99,1.0s Window,0,0
+fault_13,True,0.9,28,mahalanobis,0.99,1.0s Window,0,0
+fault_14,True,0.9,15,mahalanobis,0.99,1.0s Window,0,0
+fault_15,True,1.2,50,mahalanobis,0.99,1.0s Window,0,0
+fault_16,True,0.9,50,mahalanobis,0.99,1.0s Window,0,0
+fault_17,True,0.9,36,mahalanobis,0.99,1.0s Window,0,0
+fault_18,True,0.9,24,mahalanobis,0.99,1.0s Window,0,0
+fault_19,True,0.9,10,mahalanobis,0.99,1.0s Window,0,0
+fault_2,True,0.9,47,mahalanobis,0.99,1.0s Window,0,0
+fault_20,True,0.9,15,mahalanobis,0.99,1.0s Window,0,0
+fault_3,True,0.9,31,mahalanobis,0.99,1.0s Window,0,0
+fault_4,True,0.9,18,mahalanobis,0.99,1.0s Window,0,0
+fault_5,False,,3,mahalanobis,0.99,1.0s Window,0,0
+fault_6,True,0.9,50,mahalanobis,0.99,1.0s Window,0,0
+fault_7,True,0.9,40,mahalanobis,0.99,1.0s Window,0,0
+fault_8,True,0.9,25,mahalanobis,0.99,1.0s Window,0,0
+fault_9,False,,8,mahalanobis,0.99,1.0s Window,0,0
+fault_0,False,,4,mahalanobis,0.99,0.5s Window,0,0
+fault_1,True,0.4,50,mahalanobis,0.99,0.5s Window,0,0
+fault_10,False,,4,mahalanobis,0.99,0.5s Window,0,0
+fault_11,True,0.4,50,mahalanobis,0.99,0.5s Window,0,0
+fault_12,True,0.4,42,mahalanobis,0.99,0.5s Window,0,0
+fault_13,True,0.4,28,mahalanobis,0.99,0.5s Window,0,0
+fault_14,True,0.4,15,mahalanobis,0.99,0.5s Window,0,0
+fault_15,True,1.6,50,mahalanobis,0.99,0.5s Window,0,0
+fault_16,True,0.4,50,mahalanobis,0.99,0.5s Window,0,0
+fault_17,True,0.4,36,mahalanobis,0.99,0.5s Window,0,0
+fault_18,True,0.4,24,mahalanobis,0.99,0.5s Window,0,0
+fault_19,True,0.4,10,mahalanobis,0.99,0.5s Window,0,0
+fault_2,True,0.4,47,mahalanobis,0.99,0.5s Window,0,0
+fault_20,True,0.4,15,mahalanobis,0.99,0.5s Window,0,0
+fault_3,True,0.4,31,mahalanobis,0.99,0.5s Window,0,0
+fault_4,True,0.4,18,mahalanobis,0.99,0.5s Window,0,0
+fault_5,False,,3,mahalanobis,0.99,0.5s Window,0,0
+fault_6,True,0.4,50,mahalanobis,0.99,0.5s Window,0,0
+fault_7,True,0.4,40,mahalanobis,0.99,0.5s Window,0,0
+fault_8,True,0.4,25,mahalanobis,0.99,0.5s Window,0,0
+fault_9,True,0.4,8,mahalanobis,0.99,0.5s Window,0,0
+fault_0,True,0.2,4,mahalanobis,0.99,Sample-level,0,0
+fault_1,True,0.2,50,mahalanobis,0.99,Sample-level,0,0
+fault_10,True,0.2,4,mahalanobis,0.99,Sample-level,0,0
+fault_11,True,0.2,50,mahalanobis,0.99,Sample-level,0,0
+fault_12,True,0.2,42,mahalanobis,0.99,Sample-level,0,0
+fault_13,True,0.2,28,mahalanobis,0.99,Sample-level,0,0
+fault_14,True,0.2,15,mahalanobis,0.99,Sample-level,0,0
+fault_15,True,2.1,50,mahalanobis,0.99,Sample-level,0,0
+fault_16,True,0.2,50,mahalanobis,0.99,Sample-level,0,0
+fault_17,True,0.2,36,mahalanobis,0.99,Sample-level,0,0
+fault_18,True,0.9,24,mahalanobis,0.99,Sample-level,0,0
+fault_19,False,,10,mahalanobis,0.99,Sample-level,0,0
+fault_2,True,1.3,47,mahalanobis,0.99,Sample-level,0,0
+fault_20,False,,15,mahalanobis,0.99,Sample-level,0,0
+fault_3,False,,31,mahalanobis,0.99,Sample-level,0,0
+fault_4,True,0.3,18,mahalanobis,0.99,Sample-level,0,0
+fault_5,True,0.2,3,mahalanobis,0.99,Sample-level,0,0
+fault_6,True,0.2,50,mahalanobis,0.99,Sample-level,0,0
+fault_7,True,0.2,40,mahalanobis,0.99,Sample-level,0,0
+fault_8,True,1.4,25,mahalanobis,0.99,Sample-level,0,0
+fault_9,True,0.2,8,mahalanobis,0.99,Sample-level,0,0
+fault_0,True,0.2,4,mahalanobis,0.99,OR_3,0,0
+fault_1,True,0.2,50,mahalanobis,0.99,OR_3,0,0
+fault_10,True,0.2,4,mahalanobis,0.99,OR_3,0,0
+fault_11,True,0.2,50,mahalanobis,0.99,OR_3,0,0
+fault_12,True,0.2,42,mahalanobis,0.99,OR_3,0,0
+fault_13,True,0.2,28,mahalanobis,0.99,OR_3,0,0
+fault_14,True,0.2,15,mahalanobis,0.99,OR_3,0,0
+fault_15,True,1.2,50,mahalanobis,0.99,OR_3,0,0
+fault_16,True,0.2,50,mahalanobis,0.99,OR_3,0,0
+fault_17,True,0.2,36,mahalanobis,0.99,OR_3,0,0
+fault_18,True,0.4,24,mahalanobis,0.99,OR_3,0,0
+fault_19,True,0.4,10,mahalanobis,0.99,OR_3,0,0
+fault_2,True,0.4,47,mahalanobis,0.99,OR_3,0,0
+fault_20,True,0.4,15,mahalanobis,0.99,OR_3,0,0
+fault_3,True,0.4,31,mahalanobis,0.99,OR_3,0,0
+fault_4,True,0.3,18,mahalanobis,0.99,OR_3,0,0
+fault_5,True,0.2,3,mahalanobis,0.99,OR_3,0,0
+fault_6,True,0.2,50,mahalanobis,0.99,OR_3,0,0
+fault_7,True,0.2,40,mahalanobis,0.99,OR_3,0,0
+fault_8,True,0.4,25,mahalanobis,0.99,OR_3,0,0
+fault_9,True,0.2,8,mahalanobis,0.99,OR_3,0,0
+fault_0,True,0.3,4,mahalanobis,0.99,OR_3 + P2,0,0
+fault_1,True,0.3,50,mahalanobis,0.99,OR_3 + P2,0,0
+fault_10,True,0.3,4,mahalanobis,0.99,OR_3 + P2,0,0
+fault_11,True,0.3,50,mahalanobis,0.99,OR_3 + P2,0,0
+fault_12,True,0.3,42,mahalanobis,0.99,OR_3 + P2,0,0
+fault_13,True,0.3,28,mahalanobis,0.99,OR_3 + P2,0,0
+fault_14,True,0.3,15,mahalanobis,0.99,OR_3 + P2,0,0
+fault_15,True,1.5,50,mahalanobis,0.99,OR_3 + P2,0,0
+fault_16,True,0.3,50,mahalanobis,0.99,OR_3 + P2,0,0
+fault_17,True,0.3,36,mahalanobis,0.99,OR_3 + P2,0,0
+fault_18,True,0.5,24,mahalanobis,0.99,OR_3 + P2,0,0
+fault_19,True,0.5,10,mahalanobis,0.99,OR_3 + P2,0,0
+fault_2,True,0.5,47,mahalanobis,0.99,OR_3 + P2,0,0
+fault_20,True,0.5,15,mahalanobis,0.99,OR_3 + P2,0,0
+fault_3,True,0.7,31,mahalanobis,0.99,OR_3 + P2,0,0
+fault_4,True,0.4,18,mahalanobis,0.99,OR_3 + P2,0,0
+fault_5,False,,3,mahalanobis,0.99,OR_3 + P2,0,0
+fault_6,True,0.3,50,mahalanobis,0.99,OR_3 + P2,0,0
+fault_7,True,0.3,40,mahalanobis,0.99,OR_3 + P2,0,0
+fault_8,True,0.5,25,mahalanobis,0.99,OR_3 + P2,0,0
+fault_9,True,0.3,8,mahalanobis,0.99,OR_3 + P2,0,0
+fault_0,False,,4,iforest,0.99,1.0s Window,0,0
+fault_1,True,0.9,50,iforest,0.99,1.0s Window,0,0
+fault_10,False,,4,iforest,0.99,1.0s Window,0,0
+fault_11,True,0.9,50,iforest,0.99,1.0s Window,0,0
+fault_12,True,0.9,42,iforest,0.99,1.0s Window,0,0
+fault_13,True,0.9,28,iforest,0.99,1.0s Window,0,0
+fault_14,True,0.9,15,iforest,0.99,1.0s Window,0,0
+fault_15,True,0.9,50,iforest,0.99,1.0s Window,0,0
+fault_16,True,0.9,50,iforest,0.99,1.0s Window,0,0
+fault_17,True,0.9,36,iforest,0.99,1.0s Window,0,0
+fault_18,True,0.9,24,iforest,0.99,1.0s Window,0,0
+fault_19,False,,10,iforest,0.99,1.0s Window,0,0
+fault_2,True,1.3,47,iforest,0.99,1.0s Window,0,0
+fault_20,True,0.9,15,iforest,0.99,1.0s Window,0,0
+fault_3,True,2.7,31,iforest,0.99,1.0s Window,0,0
+fault_4,True,0.9,18,iforest,0.99,1.0s Window,0,0
+fault_5,False,,3,iforest,0.99,1.0s Window,0,0
+fault_6,True,0.9,50,iforest,0.99,1.0s Window,0,0
+fault_7,True,0.9,40,iforest,0.99,1.0s Window,0,0
+fault_8,True,0.9,25,iforest,0.99,1.0s Window,0,0
+fault_9,False,,8,iforest,0.99,1.0s Window,0,0
+fault_0,False,,4,iforest,0.99,0.5s Window,0,0
+fault_1,True,0.4,50,iforest,0.99,0.5s Window,0,0
+fault_10,False,,4,iforest,0.99,0.5s Window,0,0
+fault_11,True,0.4,50,iforest,0.99,0.5s Window,0,0
+fault_12,True,0.4,42,iforest,0.99,0.5s Window,0,0
+fault_13,True,0.4,28,iforest,0.99,0.5s Window,0,0
+fault_14,True,0.4,15,iforest,0.99,0.5s Window,0,0
+fault_15,True,1.6,50,iforest,0.99,0.5s Window,0,0
+fault_16,True,0.4,50,iforest,0.99,0.5s Window,0,0
+fault_17,True,0.4,36,iforest,0.99,0.5s Window,0,0
+fault_18,True,0.9,24,iforest,0.99,0.5s Window,0,0
+fault_19,True,0.9,10,iforest,0.99,0.5s Window,0,0
+fault_2,True,1.3,47,iforest,0.99,0.5s Window,0,0
+fault_20,True,1.2,15,iforest,0.99,0.5s Window,0,0
+fault_3,True,0.9,31,iforest,0.99,0.5s Window,0,0
+fault_4,True,0.4,18,iforest,0.99,0.5s Window,0,0
+fault_5,False,,3,iforest,0.99,0.5s Window,0,0
+fault_6,True,0.4,50,iforest,0.99,0.5s Window,0,0
+fault_7,True,0.4,40,iforest,0.99,0.5s Window,0,0
+fault_8,True,0.4,25,iforest,0.99,0.5s Window,0,0
+fault_9,True,0.4,8,iforest,0.99,0.5s Window,0,0
+fault_0,True,0.2,4,iforest,0.99,Sample-level,0,0
+fault_1,True,0.2,50,iforest,0.99,Sample-level,0,0
+fault_10,True,0.2,4,iforest,0.99,Sample-level,0,0
+fault_11,True,0.3,50,iforest,0.99,Sample-level,0,0
+fault_12,True,0.2,42,iforest,0.99,Sample-level,0,0
+fault_13,True,0.2,28,iforest,0.99,Sample-level,0,0
+fault_14,True,0.2,15,iforest,0.99,Sample-level,0,0
+fault_15,True,3.4,50,iforest,0.99,Sample-level,0,0
+fault_16,True,0.2,50,iforest,0.99,Sample-level,0,0
+fault_17,True,0.2,36,iforest,0.99,Sample-level,0,0
+fault_18,True,1.0,24,iforest,0.99,Sample-level,0,0
+fault_19,False,,10,iforest,0.99,Sample-level,0,0
+fault_2,True,1.5,47,iforest,0.99,Sample-level,0,0
+fault_20,False,,15,iforest,0.99,Sample-level,0,0
+fault_3,False,,31,iforest,0.99,Sample-level,0,0
+fault_4,True,0.5,18,iforest,0.99,Sample-level,0,0
+fault_5,True,0.2,3,iforest,0.99,Sample-level,0,0
+fault_6,True,0.2,50,iforest,0.99,Sample-level,0,0
+fault_7,True,0.2,40,iforest,0.99,Sample-level,0,0
+fault_8,True,1.8,25,iforest,0.99,Sample-level,0,0
+fault_9,True,0.2,8,iforest,0.99,Sample-level,0,0
+fault_0,True,0.2,4,iforest,0.99,OR_3,0,0
+fault_1,True,0.2,50,iforest,0.99,OR_3,0,0
+fault_10,True,0.2,4,iforest,0.99,OR_3,0,0
+fault_11,True,0.3,50,iforest,0.99,OR_3,0,0
+fault_12,True,0.2,42,iforest,0.99,OR_3,0,0
+fault_13,True,0.2,28,iforest,0.99,OR_3,0,0
+fault_14,True,0.2,15,iforest,0.99,OR_3,0,0
+fault_15,True,0.9,50,iforest,0.99,OR_3,0,0
+fault_16,True,0.2,50,iforest,0.99,OR_3,0,0
+fault_17,True,0.2,36,iforest,0.99,OR_3,0,0
+fault_18,True,0.9,24,iforest,0.99,OR_3,0,0
+fault_19,True,0.9,10,iforest,0.99,OR_3,0,0
+fault_2,True,1.3,47,iforest,0.99,OR_3,0,0
+fault_20,True,0.9,15,iforest,0.99,OR_3,0,0
+fault_3,True,0.9,31,iforest,0.99,OR_3,0,0
+fault_4,True,0.4,18,iforest,0.99,OR_3,0,0
+fault_5,True,0.2,3,iforest,0.99,OR_3,0,0
+fault_6,True,0.2,50,iforest,0.99,OR_3,0,0
+fault_7,True,0.2,40,iforest,0.99,OR_3,0,0
+fault_8,True,0.4,25,iforest,0.99,OR_3,0,0
+fault_9,True,0.2,8,iforest,0.99,OR_3,0,0
+fault_0,True,0.3,4,iforest,0.99,OR_3 + P2,0,0
+fault_1,True,0.3,50,iforest,0.99,OR_3 + P2,0,0
+fault_10,True,0.3,4,iforest,0.99,OR_3 + P2,0,0
+fault_11,True,0.4,50,iforest,0.99,OR_3 + P2,0,0
+fault_12,True,0.3,42,iforest,0.99,OR_3 + P2,0,0
+fault_13,True,0.3,28,iforest,0.99,OR_3 + P2,0,0
+fault_14,True,0.3,15,iforest,0.99,OR_3 + P2,0,0
+fault_15,True,1.0,50,iforest,0.99,OR_3 + P2,0,0
+fault_16,True,0.3,50,iforest,0.99,OR_3 + P2,0,0
+fault_17,True,0.3,36,iforest,0.99,OR_3 + P2,0,0
+fault_18,True,1.0,24,iforest,0.99,OR_3 + P2,0,0
+fault_19,False,,10,iforest,0.99,OR_3 + P2,0,0
+fault_2,True,1.4,47,iforest,0.99,OR_3 + P2,0,0
+fault_20,True,1.3,15,iforest,0.99,OR_3 + P2,0,0
+fault_3,True,1.0,31,iforest,0.99,OR_3 + P2,0,0
+fault_4,True,0.5,18,iforest,0.99,OR_3 + P2,0,0
+fault_5,False,,3,iforest,0.99,OR_3 + P2,0,0
+fault_6,True,0.3,50,iforest,0.99,OR_3 + P2,0,0
+fault_7,True,0.3,40,iforest,0.99,OR_3 + P2,0,0
+fault_8,True,0.5,25,iforest,0.99,OR_3 + P2,0,0
+fault_9,True,0.3,8,iforest,0.99,OR_3 + P2,0,0
+fault_0,False,,4,mahalanobis,0.99,1.0s Window,1,1
+fault_1,True,0.9,50,mahalanobis,0.99,1.0s Window,1,1
+fault_10,False,,4,mahalanobis,0.99,1.0s Window,1,1
+fault_11,True,0.9,50,mahalanobis,0.99,1.0s Window,1,1
+fault_12,True,0.9,42,mahalanobis,0.99,1.0s Window,1,1
+fault_13,True,0.9,28,mahalanobis,0.99,1.0s Window,1,1
+fault_14,True,0.9,15,mahalanobis,0.99,1.0s Window,1,1
+fault_15,True,1.4,50,mahalanobis,0.99,1.0s Window,1,1
+fault_16,True,0.9,50,mahalanobis,0.99,1.0s Window,1,1
+fault_17,True,0.9,36,mahalanobis,0.99,1.0s Window,1,1
+fault_18,True,0.9,24,mahalanobis,0.99,1.0s Window,1,1
+fault_19,True,0.9,10,mahalanobis,0.99,1.0s Window,1,1
+fault_2,True,0.9,47,mahalanobis,0.99,1.0s Window,1,1
+fault_20,True,0.9,15,mahalanobis,0.99,1.0s Window,1,1
+fault_3,True,0.9,31,mahalanobis,0.99,1.0s Window,1,1
+fault_4,True,0.9,18,mahalanobis,0.99,1.0s Window,1,1
+fault_5,False,,3,mahalanobis,0.99,1.0s Window,1,1
+fault_6,True,0.9,50,mahalanobis,0.99,1.0s Window,1,1
+fault_7,True,0.9,40,mahalanobis,0.99,1.0s Window,1,1
+fault_8,True,0.9,25,mahalanobis,0.99,1.0s Window,1,1
+fault_9,False,,8,mahalanobis,0.99,1.0s Window,1,1
+fault_0,False,,4,mahalanobis,0.99,0.5s Window,1,1
+fault_1,True,0.4,50,mahalanobis,0.99,0.5s Window,1,1
+fault_10,False,,4,mahalanobis,0.99,0.5s Window,1,1
+fault_11,True,0.4,50,mahalanobis,0.99,0.5s Window,1,1
+fault_12,True,0.4,42,mahalanobis,0.99,0.5s Window,1,1
+fault_13,True,0.4,28,mahalanobis,0.99,0.5s Window,1,1
+fault_14,True,0.4,15,mahalanobis,0.99,0.5s Window,1,1
+fault_15,True,1.6,50,mahalanobis,0.99,0.5s Window,1,1
+fault_16,True,0.4,50,mahalanobis,0.99,0.5s Window,1,1
+fault_17,True,0.4,36,mahalanobis,0.99,0.5s Window,1,1
+fault_18,True,0.4,24,mahalanobis,0.99,0.5s Window,1,1
+fault_19,True,0.4,10,mahalanobis,0.99,0.5s Window,1,1
+fault_2,True,0.4,47,mahalanobis,0.99,0.5s Window,1,1
+fault_20,True,0.4,15,mahalanobis,0.99,0.5s Window,1,1
+fault_3,True,0.6,31,mahalanobis,0.99,0.5s Window,1,1
+fault_4,True,0.4,18,mahalanobis,0.99,0.5s Window,1,1
+fault_5,False,,3,mahalanobis,0.99,0.5s Window,1,1
+fault_6,True,0.4,50,mahalanobis,0.99,0.5s Window,1,1
+fault_7,True,0.4,40,mahalanobis,0.99,0.5s Window,1,1
+fault_8,True,0.4,25,mahalanobis,0.99,0.5s Window,1,1
+fault_9,True,0.4,8,mahalanobis,0.99,0.5s Window,1,1
+fault_0,True,0.2,4,mahalanobis,0.99,Sample-level,1,1
+fault_1,True,0.2,50,mahalanobis,0.99,Sample-level,1,1
+fault_10,True,0.2,4,mahalanobis,0.99,Sample-level,1,1
+fault_11,True,0.2,50,mahalanobis,0.99,Sample-level,1,1
+fault_12,True,0.2,42,mahalanobis,0.99,Sample-level,1,1
+fault_13,True,0.2,28,mahalanobis,0.99,Sample-level,1,1
+fault_14,True,0.2,15,mahalanobis,0.99,Sample-level,1,1
+fault_15,True,2.1,50,mahalanobis,0.99,Sample-level,1,1
+fault_16,True,0.2,50,mahalanobis,0.99,Sample-level,1,1
+fault_17,True,0.2,36,mahalanobis,0.99,Sample-level,1,1
+fault_18,True,0.9,24,mahalanobis,0.99,Sample-level,1,1
+fault_19,False,,10,mahalanobis,0.99,Sample-level,1,1
+fault_2,True,1.3,47,mahalanobis,0.99,Sample-level,1,1
+fault_20,False,,15,mahalanobis,0.99,Sample-level,1,1
+fault_3,False,,31,mahalanobis,0.99,Sample-level,1,1
+fault_4,True,0.3,18,mahalanobis,0.99,Sample-level,1,1
+fault_5,True,0.2,3,mahalanobis,0.99,Sample-level,1,1
+fault_6,True,0.2,50,mahalanobis,0.99,Sample-level,1,1
+fault_7,True,0.2,40,mahalanobis,0.99,Sample-level,1,1
+fault_8,True,1.5,25,mahalanobis,0.99,Sample-level,1,1
+fault_9,True,0.2,8,mahalanobis,0.99,Sample-level,1,1
+fault_0,True,0.2,4,mahalanobis,0.99,OR_3,1,1
+fault_1,True,0.2,50,mahalanobis,0.99,OR_3,1,1
+fault_10,True,0.2,4,mahalanobis,0.99,OR_3,1,1
+fault_11,True,0.2,50,mahalanobis,0.99,OR_3,1,1
+fault_12,True,0.2,42,mahalanobis,0.99,OR_3,1,1
+fault_13,True,0.2,28,mahalanobis,0.99,OR_3,1,1
+fault_14,True,0.2,15,mahalanobis,0.99,OR_3,1,1
+fault_15,True,1.4,50,mahalanobis,0.99,OR_3,1,1
+fault_16,True,0.2,50,mahalanobis,0.99,OR_3,1,1
+fault_17,True,0.2,36,mahalanobis,0.99,OR_3,1,1
+fault_18,True,0.4,24,mahalanobis,0.99,OR_3,1,1
+fault_19,True,0.4,10,mahalanobis,0.99,OR_3,1,1
+fault_2,True,0.4,47,mahalanobis,0.99,OR_3,1,1
+fault_20,True,0.4,15,mahalanobis,0.99,OR_3,1,1
+fault_3,True,0.6,31,mahalanobis,0.99,OR_3,1,1
+fault_4,True,0.3,18,mahalanobis,0.99,OR_3,1,1
+fault_5,True,0.2,3,mahalanobis,0.99,OR_3,1,1
+fault_6,True,0.2,50,mahalanobis,0.99,OR_3,1,1
+fault_7,True,0.2,40,mahalanobis,0.99,OR_3,1,1
+fault_8,True,0.4,25,mahalanobis,0.99,OR_3,1,1
+fault_9,True,0.2,8,mahalanobis,0.99,OR_3,1,1
+fault_0,True,0.3,4,mahalanobis,0.99,OR_3 + P2,1,1
+fault_1,True,0.3,50,mahalanobis,0.99,OR_3 + P2,1,1
+fault_10,True,0.3,4,mahalanobis,0.99,OR_3 + P2,1,1
+fault_11,True,0.3,50,mahalanobis,0.99,OR_3 + P2,1,1
+fault_12,True,0.3,42,mahalanobis,0.99,OR_3 + P2,1,1
+fault_13,True,0.3,28,mahalanobis,0.99,OR_3 + P2,1,1
+fault_14,True,0.3,15,mahalanobis,0.99,OR_3 + P2,1,1
+fault_15,True,1.5,50,mahalanobis,0.99,OR_3 + P2,1,1
+fault_16,True,0.3,50,mahalanobis,0.99,OR_3 + P2,1,1
+fault_17,True,0.3,36,mahalanobis,0.99,OR_3 + P2,1,1
+fault_18,True,0.5,24,mahalanobis,0.99,OR_3 + P2,1,1
+fault_19,True,0.5,10,mahalanobis,0.99,OR_3 + P2,1,1
+fault_2,True,0.5,47,mahalanobis,0.99,OR_3 + P2,1,1
+fault_20,True,0.5,15,mahalanobis,0.99,OR_3 + P2,1,1
+fault_3,True,0.7,31,mahalanobis,0.99,OR_3 + P2,1,1
+fault_4,True,0.4,18,mahalanobis,0.99,OR_3 + P2,1,1
+fault_5,False,,3,mahalanobis,0.99,OR_3 + P2,1,1
+fault_6,True,0.3,50,mahalanobis,0.99,OR_3 + P2,1,1
+fault_7,True,0.3,40,mahalanobis,0.99,OR_3 + P2,1,1
+fault_8,True,0.5,25,mahalanobis,0.99,OR_3 + P2,1,1
+fault_9,True,0.3,8,mahalanobis,0.99,OR_3 + P2,1,1
+fault_0,False,,4,iforest,0.99,1.0s Window,1,1
+fault_1,True,0.9,50,iforest,0.99,1.0s Window,1,1
+fault_10,False,,4,iforest,0.99,1.0s Window,1,1
+fault_11,True,0.9,50,iforest,0.99,1.0s Window,1,1
+fault_12,True,0.9,42,iforest,0.99,1.0s Window,1,1
+fault_13,True,0.9,28,iforest,0.99,1.0s Window,1,1
+fault_14,True,0.9,15,iforest,0.99,1.0s Window,1,1
+fault_15,True,0.9,50,iforest,0.99,1.0s Window,1,1
+fault_16,True,0.9,50,iforest,0.99,1.0s Window,1,1
+fault_17,True,0.9,36,iforest,0.99,1.0s Window,1,1
+fault_18,True,0.9,24,iforest,0.99,1.0s Window,1,1
+fault_19,False,,10,iforest,0.99,1.0s Window,1,1
+fault_2,True,0.9,47,iforest,0.99,1.0s Window,1,1
+fault_20,True,0.9,15,iforest,0.99,1.0s Window,1,1
+fault_3,True,2.7,31,iforest,0.99,1.0s Window,1,1
+fault_4,True,0.9,18,iforest,0.99,1.0s Window,1,1
+fault_5,False,,3,iforest,0.99,1.0s Window,1,1
+fault_6,True,0.9,50,iforest,0.99,1.0s Window,1,1
+fault_7,True,0.9,40,iforest,0.99,1.0s Window,1,1
+fault_8,True,0.9,25,iforest,0.99,1.0s Window,1,1
+fault_9,False,,8,iforest,0.99,1.0s Window,1,1
+fault_0,False,,4,iforest,0.99,0.5s Window,1,1
+fault_1,True,0.4,50,iforest,0.99,0.5s Window,1,1
+fault_10,False,,4,iforest,0.99,0.5s Window,1,1
+fault_11,True,0.4,50,iforest,0.99,0.5s Window,1,1
+fault_12,True,0.4,42,iforest,0.99,0.5s Window,1,1
+fault_13,True,0.4,28,iforest,0.99,0.5s Window,1,1
+fault_14,True,0.4,15,iforest,0.99,0.5s Window,1,1
+fault_15,True,1.6,50,iforest,0.99,0.5s Window,1,1
+fault_16,True,0.4,50,iforest,0.99,0.5s Window,1,1
+fault_17,True,0.4,36,iforest,0.99,0.5s Window,1,1
+fault_18,True,0.9,24,iforest,0.99,0.5s Window,1,1
+fault_19,True,0.9,10,iforest,0.99,0.5s Window,1,1
+fault_2,True,1.3,47,iforest,0.99,0.5s Window,1,1
+fault_20,True,1.2,15,iforest,0.99,0.5s Window,1,1
+fault_3,False,,31,iforest,0.99,0.5s Window,1,1
+fault_4,True,0.4,18,iforest,0.99,0.5s Window,1,1
+fault_5,False,,3,iforest,0.99,0.5s Window,1,1
+fault_6,True,0.4,50,iforest,0.99,0.5s Window,1,1
+fault_7,True,0.4,40,iforest,0.99,0.5s Window,1,1
+fault_8,True,0.6,25,iforest,0.99,0.5s Window,1,1
+fault_9,True,0.4,8,iforest,0.99,0.5s Window,1,1
+fault_0,True,0.2,4,iforest,0.99,Sample-level,1,1
+fault_1,True,0.2,50,iforest,0.99,Sample-level,1,1
+fault_10,True,0.2,4,iforest,0.99,Sample-level,1,1
+fault_11,True,0.2,50,iforest,0.99,Sample-level,1,1
+fault_12,True,0.2,42,iforest,0.99,Sample-level,1,1
+fault_13,True,0.2,28,iforest,0.99,Sample-level,1,1
+fault_14,True,0.2,15,iforest,0.99,Sample-level,1,1
+fault_15,True,3.4,50,iforest,0.99,Sample-level,1,1
+fault_16,True,0.2,50,iforest,0.99,Sample-level,1,1
+fault_17,True,0.2,36,iforest,0.99,Sample-level,1,1
+fault_18,True,1.0,24,iforest,0.99,Sample-level,1,1
+fault_19,False,,10,iforest,0.99,Sample-level,1,1
+fault_2,True,1.4,47,iforest,0.99,Sample-level,1,1
+fault_20,False,,15,iforest,0.99,Sample-level,1,1
+fault_3,False,,31,iforest,0.99,Sample-level,1,1
+fault_4,True,0.5,18,iforest,0.99,Sample-level,1,1
+fault_5,True,0.2,3,iforest,0.99,Sample-level,1,1
+fault_6,True,0.2,50,iforest,0.99,Sample-level,1,1
+fault_7,True,0.2,40,iforest,0.99,Sample-level,1,1
+fault_8,True,1.8,25,iforest,0.99,Sample-level,1,1
+fault_9,True,0.2,8,iforest,0.99,Sample-level,1,1
+fault_0,True,0.2,4,iforest,0.99,OR_3,1,1
+fault_1,True,0.2,50,iforest,0.99,OR_3,1,1
+fault_10,True,0.2,4,iforest,0.99,OR_3,1,1
+fault_11,True,0.2,50,iforest,0.99,OR_3,1,1
+fault_12,True,0.2,42,iforest,0.99,OR_3,1,1
+fault_13,True,0.2,28,iforest,0.99,OR_3,1,1
+fault_14,True,0.2,15,iforest,0.99,OR_3,1,1
+fault_15,True,0.9,50,iforest,0.99,OR_3,1,1
+fault_16,True,0.2,50,iforest,0.99,OR_3,1,1
+fault_17,True,0.2,36,iforest,0.99,OR_3,1,1
+fault_18,True,0.9,24,iforest,0.99,OR_3,1,1
+fault_19,True,0.9,10,iforest,0.99,OR_3,1,1
+fault_2,True,0.9,47,iforest,0.99,OR_3,1,1
+fault_20,True,0.9,15,iforest,0.99,OR_3,1,1
+fault_3,True,2.7,31,iforest,0.99,OR_3,1,1
+fault_4,True,0.4,18,iforest,0.99,OR_3,1,1
+fault_5,True,0.2,3,iforest,0.99,OR_3,1,1
+fault_6,True,0.2,50,iforest,0.99,OR_3,1,1
+fault_7,True,0.2,40,iforest,0.99,OR_3,1,1
+fault_8,True,0.6,25,iforest,0.99,OR_3,1,1
+fault_9,True,0.2,8,iforest,0.99,OR_3,1,1
+fault_0,True,0.3,4,iforest,0.99,OR_3 + P2,1,1
+fault_1,True,0.3,50,iforest,0.99,OR_3 + P2,1,1
+fault_10,True,0.3,4,iforest,0.99,OR_3 + P2,1,1
+fault_11,True,0.3,50,iforest,0.99,OR_3 + P2,1,1
+fault_12,True,0.3,42,iforest,0.99,OR_3 + P2,1,1
+fault_13,True,0.3,28,iforest,0.99,OR_3 + P2,1,1
+fault_14,True,0.3,15,iforest,0.99,OR_3 + P2,1,1
+fault_15,True,1.0,50,iforest,0.99,OR_3 + P2,1,1
+fault_16,True,0.3,50,iforest,0.99,OR_3 + P2,1,1
+fault_17,True,0.3,36,iforest,0.99,OR_3 + P2,1,1
+fault_18,True,1.0,24,iforest,0.99,OR_3 + P2,1,1
+fault_19,False,,10,iforest,0.99,OR_3 + P2,1,1
+fault_2,True,1.0,47,iforest,0.99,OR_3 + P2,1,1
+fault_20,True,1.0,15,iforest,0.99,OR_3 + P2,1,1
+fault_3,True,2.8,31,iforest,0.99,OR_3 + P2,1,1
+fault_4,True,0.5,18,iforest,0.99,OR_3 + P2,1,1
+fault_5,False,,3,iforest,0.99,OR_3 + P2,1,1
+fault_6,True,0.3,50,iforest,0.99,OR_3 + P2,1,1
+fault_7,True,0.3,40,iforest,0.99,OR_3 + P2,1,1
+fault_8,True,0.7,25,iforest,0.99,OR_3 + P2,1,1
+fault_9,True,0.3,8,iforest,0.99,OR_3 + P2,1,1
+fault_0,False,,4,mahalanobis,0.99,1.0s Window,2,2
+fault_1,True,0.9,50,mahalanobis,0.99,1.0s Window,2,2
+fault_10,False,,4,mahalanobis,0.99,1.0s Window,2,2
+fault_11,True,0.9,50,mahalanobis,0.99,1.0s Window,2,2
+fault_12,True,0.9,42,mahalanobis,0.99,1.0s Window,2,2
+fault_13,True,0.9,28,mahalanobis,0.99,1.0s Window,2,2
+fault_14,True,0.9,15,mahalanobis,0.99,1.0s Window,2,2
+fault_15,True,1.2,50,mahalanobis,0.99,1.0s Window,2,2
+fault_16,True,0.9,50,mahalanobis,0.99,1.0s Window,2,2
+fault_17,True,0.9,36,mahalanobis,0.99,1.0s Window,2,2
+fault_18,True,0.9,24,mahalanobis,0.99,1.0s Window,2,2
+fault_19,True,0.9,10,mahalanobis,0.99,1.0s Window,2,2
+fault_2,True,0.9,47,mahalanobis,0.99,1.0s Window,2,2
+fault_20,True,0.9,15,mahalanobis,0.99,1.0s Window,2,2
+fault_3,True,0.9,31,mahalanobis,0.99,1.0s Window,2,2
+fault_4,True,0.9,18,mahalanobis,0.99,1.0s Window,2,2
+fault_5,False,,3,mahalanobis,0.99,1.0s Window,2,2
+fault_6,True,0.9,50,mahalanobis,0.99,1.0s Window,2,2
+fault_7,True,0.9,40,mahalanobis,0.99,1.0s Window,2,2
+fault_8,True,0.9,25,mahalanobis,0.99,1.0s Window,2,2
+fault_9,False,,8,mahalanobis,0.99,1.0s Window,2,2
+fault_0,False,,4,mahalanobis,0.99,0.5s Window,2,2
+fault_1,True,0.4,50,mahalanobis,0.99,0.5s Window,2,2
+fault_10,False,,4,mahalanobis,0.99,0.5s Window,2,2
+fault_11,True,0.4,50,mahalanobis,0.99,0.5s Window,2,2
+fault_12,True,0.4,42,mahalanobis,0.99,0.5s Window,2,2
+fault_13,True,0.4,28,mahalanobis,0.99,0.5s Window,2,2
+fault_14,True,0.4,15,mahalanobis,0.99,0.5s Window,2,2
+fault_15,True,1.6,50,mahalanobis,0.99,0.5s Window,2,2
+fault_16,True,0.4,50,mahalanobis,0.99,0.5s Window,2,2
+fault_17,True,0.4,36,mahalanobis,0.99,0.5s Window,2,2
+fault_18,True,0.4,24,mahalanobis,0.99,0.5s Window,2,2
+fault_19,True,0.4,10,mahalanobis,0.99,0.5s Window,2,2
+fault_2,True,0.4,47,mahalanobis,0.99,0.5s Window,2,2
+fault_20,True,0.4,15,mahalanobis,0.99,0.5s Window,2,2
+fault_3,True,0.4,31,mahalanobis,0.99,0.5s Window,2,2
+fault_4,True,0.4,18,mahalanobis,0.99,0.5s Window,2,2
+fault_5,False,,3,mahalanobis,0.99,0.5s Window,2,2
+fault_6,True,0.4,50,mahalanobis,0.99,0.5s Window,2,2
+fault_7,True,0.4,40,mahalanobis,0.99,0.5s Window,2,2
+fault_8,True,0.4,25,mahalanobis,0.99,0.5s Window,2,2
+fault_9,True,0.4,8,mahalanobis,0.99,0.5s Window,2,2
+fault_0,True,0.2,4,mahalanobis,0.99,Sample-level,2,2
+fault_1,True,0.2,50,mahalanobis,0.99,Sample-level,2,2
+fault_10,True,0.2,4,mahalanobis,0.99,Sample-level,2,2
+fault_11,True,0.2,50,mahalanobis,0.99,Sample-level,2,2
+fault_12,True,0.2,42,mahalanobis,0.99,Sample-level,2,2
+fault_13,True,0.2,28,mahalanobis,0.99,Sample-level,2,2
+fault_14,True,0.2,15,mahalanobis,0.99,Sample-level,2,2
+fault_15,True,2.1,50,mahalanobis,0.99,Sample-level,2,2
+fault_16,True,0.2,50,mahalanobis,0.99,Sample-level,2,2
+fault_17,True,0.2,36,mahalanobis,0.99,Sample-level,2,2
+fault_18,True,0.9,24,mahalanobis,0.99,Sample-level,2,2
+fault_19,False,,10,mahalanobis,0.99,Sample-level,2,2
+fault_2,True,1.3,47,mahalanobis,0.99,Sample-level,2,2
+fault_20,False,,15,mahalanobis,0.99,Sample-level,2,2
+fault_3,False,,31,mahalanobis,0.99,Sample-level,2,2
+fault_4,True,0.3,18,mahalanobis,0.99,Sample-level,2,2
+fault_5,True,0.2,3,mahalanobis,0.99,Sample-level,2,2
+fault_6,True,0.2,50,mahalanobis,0.99,Sample-level,2,2
+fault_7,True,0.2,40,mahalanobis,0.99,Sample-level,2,2
+fault_8,True,1.5,25,mahalanobis,0.99,Sample-level,2,2
+fault_9,True,0.2,8,mahalanobis,0.99,Sample-level,2,2
+fault_0,True,0.2,4,mahalanobis,0.99,OR_3,2,2
+fault_1,True,0.2,50,mahalanobis,0.99,OR_3,2,2
+fault_10,True,0.2,4,mahalanobis,0.99,OR_3,2,2
+fault_11,True,0.2,50,mahalanobis,0.99,OR_3,2,2
+fault_12,True,0.2,42,mahalanobis,0.99,OR_3,2,2
+fault_13,True,0.2,28,mahalanobis,0.99,OR_3,2,2
+fault_14,True,0.2,15,mahalanobis,0.99,OR_3,2,2
+fault_15,True,1.2,50,mahalanobis,0.99,OR_3,2,2
+fault_16,True,0.2,50,mahalanobis,0.99,OR_3,2,2
+fault_17,True,0.2,36,mahalanobis,0.99,OR_3,2,2
+fault_18,True,0.4,24,mahalanobis,0.99,OR_3,2,2
+fault_19,True,0.4,10,mahalanobis,0.99,OR_3,2,2
+fault_2,True,0.4,47,mahalanobis,0.99,OR_3,2,2
+fault_20,True,0.4,15,mahalanobis,0.99,OR_3,2,2
+fault_3,True,0.4,31,mahalanobis,0.99,OR_3,2,2
+fault_4,True,0.3,18,mahalanobis,0.99,OR_3,2,2
+fault_5,True,0.2,3,mahalanobis,0.99,OR_3,2,2
+fault_6,True,0.2,50,mahalanobis,0.99,OR_3,2,2
+fault_7,True,0.2,40,mahalanobis,0.99,OR_3,2,2
+fault_8,True,0.4,25,mahalanobis,0.99,OR_3,2,2
+fault_9,True,0.2,8,mahalanobis,0.99,OR_3,2,2
+fault_0,True,0.3,4,mahalanobis,0.99,OR_3 + P2,2,2
+fault_1,True,0.3,50,mahalanobis,0.99,OR_3 + P2,2,2
+fault_10,True,0.3,4,mahalanobis,0.99,OR_3 + P2,2,2
+fault_11,True,0.3,50,mahalanobis,0.99,OR_3 + P2,2,2
+fault_12,True,0.3,42,mahalanobis,0.99,OR_3 + P2,2,2
+fault_13,True,0.3,28,mahalanobis,0.99,OR_3 + P2,2,2
+fault_14,True,0.3,15,mahalanobis,0.99,OR_3 + P2,2,2
+fault_15,True,1.5,50,mahalanobis,0.99,OR_3 + P2,2,2
+fault_16,True,0.3,50,mahalanobis,0.99,OR_3 + P2,2,2
+fault_17,True,0.3,36,mahalanobis,0.99,OR_3 + P2,2,2
+fault_18,True,0.5,24,mahalanobis,0.99,OR_3 + P2,2,2
+fault_19,True,0.5,10,mahalanobis,0.99,OR_3 + P2,2,2
+fault_2,True,0.5,47,mahalanobis,0.99,OR_3 + P2,2,2
+fault_20,True,0.5,15,mahalanobis,0.99,OR_3 + P2,2,2
+fault_3,True,0.7,31,mahalanobis,0.99,OR_3 + P2,2,2
+fault_4,True,0.4,18,mahalanobis,0.99,OR_3 + P2,2,2
+fault_5,False,,3,mahalanobis,0.99,OR_3 + P2,2,2
+fault_6,True,0.3,50,mahalanobis,0.99,OR_3 + P2,2,2
+fault_7,True,0.3,40,mahalanobis,0.99,OR_3 + P2,2,2
+fault_8,True,0.5,25,mahalanobis,0.99,OR_3 + P2,2,2
+fault_9,True,0.3,8,mahalanobis,0.99,OR_3 + P2,2,2
+fault_0,False,,4,iforest,0.99,1.0s Window,2,2
+fault_1,True,0.9,50,iforest,0.99,1.0s Window,2,2
+fault_10,False,,4,iforest,0.99,1.0s Window,2,2
+fault_11,True,0.9,50,iforest,0.99,1.0s Window,2,2
+fault_12,True,0.9,42,iforest,0.99,1.0s Window,2,2
+fault_13,True,0.9,28,iforest,0.99,1.0s Window,2,2
+fault_14,True,0.9,15,iforest,0.99,1.0s Window,2,2
+fault_15,True,2.0,50,iforest,0.99,1.0s Window,2,2
+fault_16,True,0.9,50,iforest,0.99,1.0s Window,2,2
+fault_17,True,0.9,36,iforest,0.99,1.0s Window,2,2
+fault_18,True,0.9,24,iforest,0.99,1.0s Window,2,2
+fault_19,False,,10,iforest,0.99,1.0s Window,2,2
+fault_2,True,1.3,47,iforest,0.99,1.0s Window,2,2
+fault_20,True,0.9,15,iforest,0.99,1.0s Window,2,2
+fault_3,True,1.7,31,iforest,0.99,1.0s Window,2,2
+fault_4,True,0.9,18,iforest,0.99,1.0s Window,2,2
+fault_5,False,,3,iforest,0.99,1.0s Window,2,2
+fault_6,True,0.9,50,iforest,0.99,1.0s Window,2,2
+fault_7,True,0.9,40,iforest,0.99,1.0s Window,2,2
+fault_8,True,0.9,25,iforest,0.99,1.0s Window,2,2
+fault_9,False,,8,iforest,0.99,1.0s Window,2,2
+fault_0,False,,4,iforest,0.99,0.5s Window,2,2
+fault_1,True,0.4,50,iforest,0.99,0.5s Window,2,2
+fault_10,False,,4,iforest,0.99,0.5s Window,2,2
+fault_11,True,0.4,50,iforest,0.99,0.5s Window,2,2
+fault_12,True,0.4,42,iforest,0.99,0.5s Window,2,2
+fault_13,True,0.4,28,iforest,0.99,0.5s Window,2,2
+fault_14,True,0.4,15,iforest,0.99,0.5s Window,2,2
+fault_15,True,1.6,50,iforest,0.99,0.5s Window,2,2
+fault_16,True,0.4,50,iforest,0.99,0.5s Window,2,2
+fault_17,True,0.4,36,iforest,0.99,0.5s Window,2,2
+fault_18,True,0.9,24,iforest,0.99,0.5s Window,2,2
+fault_19,False,,10,iforest,0.99,0.5s Window,2,2
+fault_2,True,1.2,47,iforest,0.99,0.5s Window,2,2
+fault_20,True,1.2,15,iforest,0.99,0.5s Window,2,2
+fault_3,True,1.9,31,iforest,0.99,0.5s Window,2,2
+fault_4,True,0.4,18,iforest,0.99,0.5s Window,2,2
+fault_5,False,,3,iforest,0.99,0.5s Window,2,2
+fault_6,True,0.4,50,iforest,0.99,0.5s Window,2,2
+fault_7,True,0.4,40,iforest,0.99,0.5s Window,2,2
+fault_8,True,0.7,25,iforest,0.99,0.5s Window,2,2
+fault_9,True,0.4,8,iforest,0.99,0.5s Window,2,2
+fault_0,True,0.2,4,iforest,0.99,Sample-level,2,2
+fault_1,True,0.2,50,iforest,0.99,Sample-level,2,2
+fault_10,True,0.2,4,iforest,0.99,Sample-level,2,2
+fault_11,True,0.2,50,iforest,0.99,Sample-level,2,2
+fault_12,True,0.2,42,iforest,0.99,Sample-level,2,2
+fault_13,True,0.2,28,iforest,0.99,Sample-level,2,2
+fault_14,True,0.2,15,iforest,0.99,Sample-level,2,2
+fault_15,True,3.4,50,iforest,0.99,Sample-level,2,2
+fault_16,True,0.2,50,iforest,0.99,Sample-level,2,2
+fault_17,True,0.2,36,iforest,0.99,Sample-level,2,2
+fault_18,True,1.0,24,iforest,0.99,Sample-level,2,2
+fault_19,False,,10,iforest,0.99,Sample-level,2,2
+fault_2,True,1.5,47,iforest,0.99,Sample-level,2,2
+fault_20,False,,15,iforest,0.99,Sample-level,2,2
+fault_3,False,,31,iforest,0.99,Sample-level,2,2
+fault_4,True,0.5,18,iforest,0.99,Sample-level,2,2
+fault_5,True,0.2,3,iforest,0.99,Sample-level,2,2
+fault_6,True,0.2,50,iforest,0.99,Sample-level,2,2
+fault_7,True,0.2,40,iforest,0.99,Sample-level,2,2
+fault_8,True,1.8,25,iforest,0.99,Sample-level,2,2
+fault_9,True,0.2,8,iforest,0.99,Sample-level,2,2
+fault_0,True,0.2,4,iforest,0.99,OR_3,2,2
+fault_1,True,0.2,50,iforest,0.99,OR_3,2,2
+fault_10,True,0.2,4,iforest,0.99,OR_3,2,2
+fault_11,True,0.2,50,iforest,0.99,OR_3,2,2
+fault_12,True,0.2,42,iforest,0.99,OR_3,2,2
+fault_13,True,0.2,28,iforest,0.99,OR_3,2,2
+fault_14,True,0.2,15,iforest,0.99,OR_3,2,2
+fault_15,True,1.6,50,iforest,0.99,OR_3,2,2
+fault_16,True,0.2,50,iforest,0.99,OR_3,2,2
+fault_17,True,0.2,36,iforest,0.99,OR_3,2,2
+fault_18,True,0.9,24,iforest,0.99,OR_3,2,2
+fault_19,False,,10,iforest,0.99,OR_3,2,2
+fault_2,True,1.2,47,iforest,0.99,OR_3,2,2
+fault_20,True,0.9,15,iforest,0.99,OR_3,2,2
+fault_3,True,1.7,31,iforest,0.99,OR_3,2,2
+fault_4,True,0.4,18,iforest,0.99,OR_3,2,2
+fault_5,True,0.2,3,iforest,0.99,OR_3,2,2
+fault_6,True,0.2,50,iforest,0.99,OR_3,2,2
+fault_7,True,0.2,40,iforest,0.99,OR_3,2,2
+fault_8,True,0.7,25,iforest,0.99,OR_3,2,2
+fault_9,True,0.2,8,iforest,0.99,OR_3,2,2
+fault_0,True,0.3,4,iforest,0.99,OR_3 + P2,2,2
+fault_1,True,0.3,50,iforest,0.99,OR_3 + P2,2,2
+fault_10,True,0.3,4,iforest,0.99,OR_3 + P2,2,2
+fault_11,True,0.3,50,iforest,0.99,OR_3 + P2,2,2
+fault_12,True,0.3,42,iforest,0.99,OR_3 + P2,2,2
+fault_13,True,0.3,28,iforest,0.99,OR_3 + P2,2,2
+fault_14,True,0.3,15,iforest,0.99,OR_3 + P2,2,2
+fault_15,True,2.1,50,iforest,0.99,OR_3 + P2,2,2
+fault_16,True,0.3,50,iforest,0.99,OR_3 + P2,2,2
+fault_17,True,0.3,36,iforest,0.99,OR_3 + P2,2,2
+fault_18,True,1.0,24,iforest,0.99,OR_3 + P2,2,2
+fault_19,False,,10,iforest,0.99,OR_3 + P2,2,2
+fault_2,True,1.3,47,iforest,0.99,OR_3 + P2,2,2
+fault_20,True,1.0,15,iforest,0.99,OR_3 + P2,2,2
+fault_3,True,2.0,31,iforest,0.99,OR_3 + P2,2,2
+fault_4,True,0.5,18,iforest,0.99,OR_3 + P2,2,2
+fault_5,False,,3,iforest,0.99,OR_3 + P2,2,2
+fault_6,True,0.3,50,iforest,0.99,OR_3 + P2,2,2
+fault_7,True,0.3,40,iforest,0.99,OR_3 + P2,2,2
+fault_8,True,0.8,25,iforest,0.99,OR_3 + P2,2,2
+fault_9,True,0.3,8,iforest,0.99,OR_3 + P2,2,2
+fault_0,False,,4,mahalanobis,0.99,1.0s Window,3,3
+fault_1,True,0.9,50,mahalanobis,0.99,1.0s Window,3,3
+fault_10,False,,4,mahalanobis,0.99,1.0s Window,3,3
+fault_11,True,0.9,50,mahalanobis,0.99,1.0s Window,3,3
+fault_12,True,0.9,42,mahalanobis,0.99,1.0s Window,3,3
+fault_13,True,0.9,28,mahalanobis,0.99,1.0s Window,3,3
+fault_14,True,0.9,15,mahalanobis,0.99,1.0s Window,3,3
+fault_15,True,1.2,50,mahalanobis,0.99,1.0s Window,3,3
+fault_16,True,0.9,50,mahalanobis,0.99,1.0s Window,3,3
+fault_17,True,0.9,36,mahalanobis,0.99,1.0s Window,3,3
+fault_18,True,0.9,24,mahalanobis,0.99,1.0s Window,3,3
+fault_19,True,0.9,10,mahalanobis,0.99,1.0s Window,3,3
+fault_2,True,0.9,47,mahalanobis,0.99,1.0s Window,3,3
+fault_20,True,0.9,15,mahalanobis,0.99,1.0s Window,3,3
+fault_3,True,0.9,31,mahalanobis,0.99,1.0s Window,3,3
+fault_4,True,0.9,18,mahalanobis,0.99,1.0s Window,3,3
+fault_5,False,,3,mahalanobis,0.99,1.0s Window,3,3
+fault_6,True,0.9,50,mahalanobis,0.99,1.0s Window,3,3
+fault_7,True,0.9,40,mahalanobis,0.99,1.0s Window,3,3
+fault_8,True,0.9,25,mahalanobis,0.99,1.0s Window,3,3
+fault_9,False,,8,mahalanobis,0.99,1.0s Window,3,3
+fault_0,False,,4,mahalanobis,0.99,0.5s Window,3,3
+fault_1,True,0.4,50,mahalanobis,0.99,0.5s Window,3,3
+fault_10,False,,4,mahalanobis,0.99,0.5s Window,3,3
+fault_11,True,0.4,50,mahalanobis,0.99,0.5s Window,3,3
+fault_12,True,0.4,42,mahalanobis,0.99,0.5s Window,3,3
+fault_13,True,0.4,28,mahalanobis,0.99,0.5s Window,3,3
+fault_14,True,0.4,15,mahalanobis,0.99,0.5s Window,3,3
+fault_15,True,1.6,50,mahalanobis,0.99,0.5s Window,3,3
+fault_16,True,0.4,50,mahalanobis,0.99,0.5s Window,3,3
+fault_17,True,0.4,36,mahalanobis,0.99,0.5s Window,3,3
+fault_18,True,0.4,24,mahalanobis,0.99,0.5s Window,3,3
+fault_19,True,0.4,10,mahalanobis,0.99,0.5s Window,3,3
+fault_2,True,0.4,47,mahalanobis,0.99,0.5s Window,3,3
+fault_20,True,0.4,15,mahalanobis,0.99,0.5s Window,3,3
+fault_3,True,0.4,31,mahalanobis,0.99,0.5s Window,3,3
+fault_4,True,0.4,18,mahalanobis,0.99,0.5s Window,3,3
+fault_5,False,,3,mahalanobis,0.99,0.5s Window,3,3
+fault_6,True,0.4,50,mahalanobis,0.99,0.5s Window,3,3
+fault_7,True,0.4,40,mahalanobis,0.99,0.5s Window,3,3
+fault_8,True,0.4,25,mahalanobis,0.99,0.5s Window,3,3
+fault_9,True,0.4,8,mahalanobis,0.99,0.5s Window,3,3
+fault_0,True,0.2,4,mahalanobis,0.99,Sample-level,3,3
+fault_1,True,0.2,50,mahalanobis,0.99,Sample-level,3,3
+fault_10,True,0.2,4,mahalanobis,0.99,Sample-level,3,3
+fault_11,True,0.2,50,mahalanobis,0.99,Sample-level,3,3
+fault_12,True,0.2,42,mahalanobis,0.99,Sample-level,3,3
+fault_13,True,0.2,28,mahalanobis,0.99,Sample-level,3,3
+fault_14,True,0.2,15,mahalanobis,0.99,Sample-level,3,3
+fault_15,True,2.1,50,mahalanobis,0.99,Sample-level,3,3
+fault_16,True,0.2,50,mahalanobis,0.99,Sample-level,3,3
+fault_17,True,0.2,36,mahalanobis,0.99,Sample-level,3,3
+fault_18,True,0.9,24,mahalanobis,0.99,Sample-level,3,3
+fault_19,False,,10,mahalanobis,0.99,Sample-level,3,3
+fault_2,True,1.3,47,mahalanobis,0.99,Sample-level,3,3
+fault_20,False,,15,mahalanobis,0.99,Sample-level,3,3
+fault_3,False,,31,mahalanobis,0.99,Sample-level,3,3
+fault_4,True,0.3,18,mahalanobis,0.99,Sample-level,3,3
+fault_5,True,0.2,3,mahalanobis,0.99,Sample-level,3,3
+fault_6,True,0.2,50,mahalanobis,0.99,Sample-level,3,3
+fault_7,True,0.2,40,mahalanobis,0.99,Sample-level,3,3
+fault_8,True,1.4,25,mahalanobis,0.99,Sample-level,3,3
+fault_9,True,0.2,8,mahalanobis,0.99,Sample-level,3,3
+fault_0,True,0.2,4,mahalanobis,0.99,OR_3,3,3
+fault_1,True,0.2,50,mahalanobis,0.99,OR_3,3,3
+fault_10,True,0.2,4,mahalanobis,0.99,OR_3,3,3
+fault_11,True,0.2,50,mahalanobis,0.99,OR_3,3,3
+fault_12,True,0.2,42,mahalanobis,0.99,OR_3,3,3
+fault_13,True,0.2,28,mahalanobis,0.99,OR_3,3,3
+fault_14,True,0.2,15,mahalanobis,0.99,OR_3,3,3
+fault_15,True,1.2,50,mahalanobis,0.99,OR_3,3,3
+fault_16,True,0.2,50,mahalanobis,0.99,OR_3,3,3
+fault_17,True,0.2,36,mahalanobis,0.99,OR_3,3,3
+fault_18,True,0.4,24,mahalanobis,0.99,OR_3,3,3
+fault_19,True,0.4,10,mahalanobis,0.99,OR_3,3,3
+fault_2,True,0.4,47,mahalanobis,0.99,OR_3,3,3
+fault_20,True,0.4,15,mahalanobis,0.99,OR_3,3,3
+fault_3,True,0.4,31,mahalanobis,0.99,OR_3,3,3
+fault_4,True,0.3,18,mahalanobis,0.99,OR_3,3,3
+fault_5,True,0.2,3,mahalanobis,0.99,OR_3,3,3
+fault_6,True,0.2,50,mahalanobis,0.99,OR_3,3,3
+fault_7,True,0.2,40,mahalanobis,0.99,OR_3,3,3
+fault_8,True,0.4,25,mahalanobis,0.99,OR_3,3,3
+fault_9,True,0.2,8,mahalanobis,0.99,OR_3,3,3
+fault_0,True,0.3,4,mahalanobis,0.99,OR_3 + P2,3,3
+fault_1,True,0.3,50,mahalanobis,0.99,OR_3 + P2,3,3
+fault_10,True,0.3,4,mahalanobis,0.99,OR_3 + P2,3,3
+fault_11,True,0.3,50,mahalanobis,0.99,OR_3 + P2,3,3
+fault_12,True,0.3,42,mahalanobis,0.99,OR_3 + P2,3,3
+fault_13,True,0.3,28,mahalanobis,0.99,OR_3 + P2,3,3
+fault_14,True,0.3,15,mahalanobis,0.99,OR_3 + P2,3,3
+fault_15,True,1.5,50,mahalanobis,0.99,OR_3 + P2,3,3
+fault_16,True,0.3,50,mahalanobis,0.99,OR_3 + P2,3,3
+fault_17,True,0.3,36,mahalanobis,0.99,OR_3 + P2,3,3
+fault_18,True,0.5,24,mahalanobis,0.99,OR_3 + P2,3,3
+fault_19,True,0.5,10,mahalanobis,0.99,OR_3 + P2,3,3
+fault_2,True,0.5,47,mahalanobis,0.99,OR_3 + P2,3,3
+fault_20,True,0.5,15,mahalanobis,0.99,OR_3 + P2,3,3
+fault_3,True,0.7,31,mahalanobis,0.99,OR_3 + P2,3,3
+fault_4,True,0.4,18,mahalanobis,0.99,OR_3 + P2,3,3
+fault_5,False,,3,mahalanobis,0.99,OR_3 + P2,3,3
+fault_6,True,0.3,50,mahalanobis,0.99,OR_3 + P2,3,3
+fault_7,True,0.3,40,mahalanobis,0.99,OR_3 + P2,3,3
+fault_8,True,0.5,25,mahalanobis,0.99,OR_3 + P2,3,3
+fault_9,True,0.3,8,mahalanobis,0.99,OR_3 + P2,3,3
+fault_0,False,,4,iforest,0.99,1.0s Window,3,3
+fault_1,True,0.9,50,iforest,0.99,1.0s Window,3,3
+fault_10,False,,4,iforest,0.99,1.0s Window,3,3
+fault_11,True,0.9,50,iforest,0.99,1.0s Window,3,3
+fault_12,True,0.9,42,iforest,0.99,1.0s Window,3,3
+fault_13,True,0.9,28,iforest,0.99,1.0s Window,3,3
+fault_14,True,0.9,15,iforest,0.99,1.0s Window,3,3
+fault_15,True,1.6,50,iforest,0.99,1.0s Window,3,3
+fault_16,True,0.9,50,iforest,0.99,1.0s Window,3,3
+fault_17,True,0.9,36,iforest,0.99,1.0s Window,3,3
+fault_18,True,0.9,24,iforest,0.99,1.0s Window,3,3
+fault_19,False,,10,iforest,0.99,1.0s Window,3,3
+fault_2,True,1.3,47,iforest,0.99,1.0s Window,3,3
+fault_20,False,,15,iforest,0.99,1.0s Window,3,3
+fault_3,True,1.1,31,iforest,0.99,1.0s Window,3,3
+fault_4,True,0.9,18,iforest,0.99,1.0s Window,3,3
+fault_5,False,,3,iforest,0.99,1.0s Window,3,3
+fault_6,True,0.9,50,iforest,0.99,1.0s Window,3,3
+fault_7,True,0.9,40,iforest,0.99,1.0s Window,3,3
+fault_8,True,0.9,25,iforest,0.99,1.0s Window,3,3
+fault_9,False,,8,iforest,0.99,1.0s Window,3,3
+fault_0,False,,4,iforest,0.99,0.5s Window,3,3
+fault_1,True,0.4,50,iforest,0.99,0.5s Window,3,3
+fault_10,False,,4,iforest,0.99,0.5s Window,3,3
+fault_11,True,0.4,50,iforest,0.99,0.5s Window,3,3
+fault_12,True,0.4,42,iforest,0.99,0.5s Window,3,3
+fault_13,True,0.4,28,iforest,0.99,0.5s Window,3,3
+fault_14,True,0.4,15,iforest,0.99,0.5s Window,3,3
+fault_15,True,1.6,50,iforest,0.99,0.5s Window,3,3
+fault_16,True,0.4,50,iforest,0.99,0.5s Window,3,3
+fault_17,True,0.4,36,iforest,0.99,0.5s Window,3,3
+fault_18,True,0.9,24,iforest,0.99,0.5s Window,3,3
+fault_19,False,,10,iforest,0.99,0.5s Window,3,3
+fault_2,True,1.3,47,iforest,0.99,0.5s Window,3,3
+fault_20,True,1.2,15,iforest,0.99,0.5s Window,3,3
+fault_3,False,,31,iforest,0.99,0.5s Window,3,3
+fault_4,True,0.4,18,iforest,0.99,0.5s Window,3,3
+fault_5,False,,3,iforest,0.99,0.5s Window,3,3
+fault_6,True,0.4,50,iforest,0.99,0.5s Window,3,3
+fault_7,True,0.4,40,iforest,0.99,0.5s Window,3,3
+fault_8,True,0.4,25,iforest,0.99,0.5s Window,3,3
+fault_9,True,0.4,8,iforest,0.99,0.5s Window,3,3
+fault_0,True,0.2,4,iforest,0.99,Sample-level,3,3
+fault_1,True,0.2,50,iforest,0.99,Sample-level,3,3
+fault_10,True,0.2,4,iforest,0.99,Sample-level,3,3
+fault_11,True,0.2,50,iforest,0.99,Sample-level,3,3
+fault_12,True,0.2,42,iforest,0.99,Sample-level,3,3
+fault_13,True,0.2,28,iforest,0.99,Sample-level,3,3
+fault_14,True,0.2,15,iforest,0.99,Sample-level,3,3
+fault_15,True,3.4,50,iforest,0.99,Sample-level,3,3
+fault_16,True,0.2,50,iforest,0.99,Sample-level,3,3
+fault_17,True,0.2,36,iforest,0.99,Sample-level,3,3
+fault_18,True,1.1,24,iforest,0.99,Sample-level,3,3
+fault_19,False,,10,iforest,0.99,Sample-level,3,3
+fault_2,True,1.5,47,iforest,0.99,Sample-level,3,3
+fault_20,False,,15,iforest,0.99,Sample-level,3,3
+fault_3,False,,31,iforest,0.99,Sample-level,3,3
+fault_4,True,0.5,18,iforest,0.99,Sample-level,3,3
+fault_5,True,0.2,3,iforest,0.99,Sample-level,3,3
+fault_6,True,0.2,50,iforest,0.99,Sample-level,3,3
+fault_7,True,0.2,40,iforest,0.99,Sample-level,3,3
+fault_8,True,1.8,25,iforest,0.99,Sample-level,3,3
+fault_9,True,0.2,8,iforest,0.99,Sample-level,3,3
+fault_0,True,0.2,4,iforest,0.99,OR_3,3,3
+fault_1,True,0.2,50,iforest,0.99,OR_3,3,3
+fault_10,True,0.2,4,iforest,0.99,OR_3,3,3
+fault_11,True,0.2,50,iforest,0.99,OR_3,3,3
+fault_12,True,0.2,42,iforest,0.99,OR_3,3,3
+fault_13,True,0.2,28,iforest,0.99,OR_3,3,3
+fault_14,True,0.2,15,iforest,0.99,OR_3,3,3
+fault_15,True,1.6,50,iforest,0.99,OR_3,3,3
+fault_16,True,0.2,50,iforest,0.99,OR_3,3,3
+fault_17,True,0.2,36,iforest,0.99,OR_3,3,3
+fault_18,True,0.9,24,iforest,0.99,OR_3,3,3
+fault_19,False,,10,iforest,0.99,OR_3,3,3
+fault_2,True,1.3,47,iforest,0.99,OR_3,3,3
+fault_20,True,1.2,15,iforest,0.99,OR_3,3,3
+fault_3,True,1.1,31,iforest,0.99,OR_3,3,3
+fault_4,True,0.4,18,iforest,0.99,OR_3,3,3
+fault_5,True,0.2,3,iforest,0.99,OR_3,3,3
+fault_6,True,0.2,50,iforest,0.99,OR_3,3,3
+fault_7,True,0.2,40,iforest,0.99,OR_3,3,3
+fault_8,True,0.4,25,iforest,0.99,OR_3,3,3
+fault_9,True,0.2,8,iforest,0.99,OR_3,3,3
+fault_0,True,0.3,4,iforest,0.99,OR_3 + P2,3,3
+fault_1,True,0.3,50,iforest,0.99,OR_3 + P2,3,3
+fault_10,True,0.3,4,iforest,0.99,OR_3 + P2,3,3
+fault_11,True,0.3,50,iforest,0.99,OR_3 + P2,3,3
+fault_12,True,0.3,42,iforest,0.99,OR_3 + P2,3,3
+fault_13,True,0.3,28,iforest,0.99,OR_3 + P2,3,3
+fault_14,True,0.3,15,iforest,0.99,OR_3 + P2,3,3
+fault_15,True,2.6,50,iforest,0.99,OR_3 + P2,3,3
+fault_16,True,0.3,50,iforest,0.99,OR_3 + P2,3,3
+fault_17,True,0.3,36,iforest,0.99,OR_3 + P2,3,3
+fault_18,True,1.0,24,iforest,0.99,OR_3 + P2,3,3
+fault_19,False,,10,iforest,0.99,OR_3 + P2,3,3
+fault_2,True,1.4,47,iforest,0.99,OR_3 + P2,3,3
+fault_20,False,,15,iforest,0.99,OR_3 + P2,3,3
+fault_3,True,2.2,31,iforest,0.99,OR_3 + P2,3,3
+fault_4,True,0.5,18,iforest,0.99,OR_3 + P2,3,3
+fault_5,False,,3,iforest,0.99,OR_3 + P2,3,3
+fault_6,True,0.3,50,iforest,0.99,OR_3 + P2,3,3
+fault_7,True,0.3,40,iforest,0.99,OR_3 + P2,3,3
+fault_8,True,0.7,25,iforest,0.99,OR_3 + P2,3,3
+fault_9,True,0.3,8,iforest,0.99,OR_3 + P2,3,3
+fault_0,False,,4,mahalanobis,0.99,1.0s Window,4,4
+fault_1,True,0.9,50,mahalanobis,0.99,1.0s Window,4,4
+fault_10,False,,4,mahalanobis,0.99,1.0s Window,4,4
+fault_11,True,0.9,50,mahalanobis,0.99,1.0s Window,4,4
+fault_12,True,0.9,42,mahalanobis,0.99,1.0s Window,4,4
+fault_13,True,0.9,28,mahalanobis,0.99,1.0s Window,4,4
+fault_14,True,0.9,15,mahalanobis,0.99,1.0s Window,4,4
+fault_15,True,1.2,50,mahalanobis,0.99,1.0s Window,4,4
+fault_16,True,0.9,50,mahalanobis,0.99,1.0s Window,4,4
+fault_17,True,0.9,36,mahalanobis,0.99,1.0s Window,4,4
+fault_18,True,0.9,24,mahalanobis,0.99,1.0s Window,4,4
+fault_19,True,0.9,10,mahalanobis,0.99,1.0s Window,4,4
+fault_2,True,0.9,47,mahalanobis,0.99,1.0s Window,4,4
+fault_20,True,0.9,15,mahalanobis,0.99,1.0s Window,4,4
+fault_3,True,0.9,31,mahalanobis,0.99,1.0s Window,4,4
+fault_4,True,0.9,18,mahalanobis,0.99,1.0s Window,4,4
+fault_5,False,,3,mahalanobis,0.99,1.0s Window,4,4
+fault_6,True,0.9,50,mahalanobis,0.99,1.0s Window,4,4
+fault_7,True,0.9,40,mahalanobis,0.99,1.0s Window,4,4
+fault_8,True,0.9,25,mahalanobis,0.99,1.0s Window,4,4
+fault_9,False,,8,mahalanobis,0.99,1.0s Window,4,4
+fault_0,False,,4,mahalanobis,0.99,0.5s Window,4,4
+fault_1,True,0.4,50,mahalanobis,0.99,0.5s Window,4,4
+fault_10,False,,4,mahalanobis,0.99,0.5s Window,4,4
+fault_11,True,0.4,50,mahalanobis,0.99,0.5s Window,4,4
+fault_12,True,0.4,42,mahalanobis,0.99,0.5s Window,4,4
+fault_13,True,0.4,28,mahalanobis,0.99,0.5s Window,4,4
+fault_14,True,0.4,15,mahalanobis,0.99,0.5s Window,4,4
+fault_15,True,1.6,50,mahalanobis,0.99,0.5s Window,4,4
+fault_16,True,0.4,50,mahalanobis,0.99,0.5s Window,4,4
+fault_17,True,0.4,36,mahalanobis,0.99,0.5s Window,4,4
+fault_18,True,0.4,24,mahalanobis,0.99,0.5s Window,4,4
+fault_19,True,0.4,10,mahalanobis,0.99,0.5s Window,4,4
+fault_2,True,0.4,47,mahalanobis,0.99,0.5s Window,4,4
+fault_20,True,0.4,15,mahalanobis,0.99,0.5s Window,4,4
+fault_3,True,0.6,31,mahalanobis,0.99,0.5s Window,4,4
+fault_4,True,0.4,18,mahalanobis,0.99,0.5s Window,4,4
+fault_5,False,,3,mahalanobis,0.99,0.5s Window,4,4
+fault_6,True,0.4,50,mahalanobis,0.99,0.5s Window,4,4
+fault_7,True,0.4,40,mahalanobis,0.99,0.5s Window,4,4
+fault_8,True,0.4,25,mahalanobis,0.99,0.5s Window,4,4
+fault_9,True,0.4,8,mahalanobis,0.99,0.5s Window,4,4
+fault_0,True,0.2,4,mahalanobis,0.99,Sample-level,4,4
+fault_1,True,0.2,50,mahalanobis,0.99,Sample-level,4,4
+fault_10,True,0.2,4,mahalanobis,0.99,Sample-level,4,4
+fault_11,True,0.2,50,mahalanobis,0.99,Sample-level,4,4
+fault_12,True,0.2,42,mahalanobis,0.99,Sample-level,4,4
+fault_13,True,0.2,28,mahalanobis,0.99,Sample-level,4,4
+fault_14,True,0.2,15,mahalanobis,0.99,Sample-level,4,4
+fault_15,True,2.1,50,mahalanobis,0.99,Sample-level,4,4
+fault_16,True,0.2,50,mahalanobis,0.99,Sample-level,4,4
+fault_17,True,0.2,36,mahalanobis,0.99,Sample-level,4,4
+fault_18,True,0.9,24,mahalanobis,0.99,Sample-level,4,4
+fault_19,False,,10,mahalanobis,0.99,Sample-level,4,4
+fault_2,True,1.3,47,mahalanobis,0.99,Sample-level,4,4
+fault_20,False,,15,mahalanobis,0.99,Sample-level,4,4
+fault_3,False,,31,mahalanobis,0.99,Sample-level,4,4
+fault_4,True,0.3,18,mahalanobis,0.99,Sample-level,4,4
+fault_5,True,0.2,3,mahalanobis,0.99,Sample-level,4,4
+fault_6,True,0.2,50,mahalanobis,0.99,Sample-level,4,4
+fault_7,True,0.2,40,mahalanobis,0.99,Sample-level,4,4
+fault_8,True,1.7,25,mahalanobis,0.99,Sample-level,4,4
+fault_9,True,0.2,8,mahalanobis,0.99,Sample-level,4,4
+fault_0,True,0.2,4,mahalanobis,0.99,OR_3,4,4
+fault_1,True,0.2,50,mahalanobis,0.99,OR_3,4,4
+fault_10,True,0.2,4,mahalanobis,0.99,OR_3,4,4
+fault_11,True,0.2,50,mahalanobis,0.99,OR_3,4,4
+fault_12,True,0.2,42,mahalanobis,0.99,OR_3,4,4
+fault_13,True,0.2,28,mahalanobis,0.99,OR_3,4,4
+fault_14,True,0.2,15,mahalanobis,0.99,OR_3,4,4
+fault_15,True,1.2,50,mahalanobis,0.99,OR_3,4,4
+fault_16,True,0.2,50,mahalanobis,0.99,OR_3,4,4
+fault_17,True,0.2,36,mahalanobis,0.99,OR_3,4,4
+fault_18,True,0.4,24,mahalanobis,0.99,OR_3,4,4
+fault_19,True,0.4,10,mahalanobis,0.99,OR_3,4,4
+fault_2,True,0.4,47,mahalanobis,0.99,OR_3,4,4
+fault_20,True,0.4,15,mahalanobis,0.99,OR_3,4,4
+fault_3,True,0.6,31,mahalanobis,0.99,OR_3,4,4
+fault_4,True,0.3,18,mahalanobis,0.99,OR_3,4,4
+fault_5,True,0.2,3,mahalanobis,0.99,OR_3,4,4
+fault_6,True,0.2,50,mahalanobis,0.99,OR_3,4,4
+fault_7,True,0.2,40,mahalanobis,0.99,OR_3,4,4
+fault_8,True,0.4,25,mahalanobis,0.99,OR_3,4,4
+fault_9,True,0.2,8,mahalanobis,0.99,OR_3,4,4
+fault_0,True,0.3,4,mahalanobis,0.99,OR_3 + P2,4,4
+fault_1,True,0.3,50,mahalanobis,0.99,OR_3 + P2,4,4
+fault_10,True,0.3,4,mahalanobis,0.99,OR_3 + P2,4,4
+fault_11,True,0.3,50,mahalanobis,0.99,OR_3 + P2,4,4
+fault_12,True,0.3,42,mahalanobis,0.99,OR_3 + P2,4,4
+fault_13,True,0.3,28,mahalanobis,0.99,OR_3 + P2,4,4
+fault_14,True,0.3,15,mahalanobis,0.99,OR_3 + P2,4,4
+fault_15,True,1.5,50,mahalanobis,0.99,OR_3 + P2,4,4
+fault_16,True,0.3,50,mahalanobis,0.99,OR_3 + P2,4,4
+fault_17,True,0.3,36,mahalanobis,0.99,OR_3 + P2,4,4
+fault_18,True,0.5,24,mahalanobis,0.99,OR_3 + P2,4,4
+fault_19,True,0.5,10,mahalanobis,0.99,OR_3 + P2,4,4
+fault_2,True,0.5,47,mahalanobis,0.99,OR_3 + P2,4,4
+fault_20,True,0.5,15,mahalanobis,0.99,OR_3 + P2,4,4
+fault_3,True,0.7,31,mahalanobis,0.99,OR_3 + P2,4,4
+fault_4,True,0.4,18,mahalanobis,0.99,OR_3 + P2,4,4
+fault_5,False,,3,mahalanobis,0.99,OR_3 + P2,4,4
+fault_6,True,0.3,50,mahalanobis,0.99,OR_3 + P2,4,4
+fault_7,True,0.3,40,mahalanobis,0.99,OR_3 + P2,4,4
+fault_8,True,0.5,25,mahalanobis,0.99,OR_3 + P2,4,4
+fault_9,True,0.3,8,mahalanobis,0.99,OR_3 + P2,4,4
+fault_0,False,,4,iforest,0.99,1.0s Window,4,4
+fault_1,True,0.9,50,iforest,0.99,1.0s Window,4,4
+fault_10,False,,4,iforest,0.99,1.0s Window,4,4
+fault_11,True,0.9,50,iforest,0.99,1.0s Window,4,4
+fault_12,True,0.9,42,iforest,0.99,1.0s Window,4,4
+fault_13,True,0.9,28,iforest,0.99,1.0s Window,4,4
+fault_14,True,0.9,15,iforest,0.99,1.0s Window,4,4
+fault_15,True,0.9,50,iforest,0.99,1.0s Window,4,4
+fault_16,True,0.9,50,iforest,0.99,1.0s Window,4,4
+fault_17,True,0.9,36,iforest,0.99,1.0s Window,4,4
+fault_18,True,0.9,24,iforest,0.99,1.0s Window,4,4
+fault_19,False,,10,iforest,0.99,1.0s Window,4,4
+fault_2,True,1.3,47,iforest,0.99,1.0s Window,4,4
+fault_20,True,0.9,15,iforest,0.99,1.0s Window,4,4
+fault_3,True,1.1,31,iforest,0.99,1.0s Window,4,4
+fault_4,True,0.9,18,iforest,0.99,1.0s Window,4,4
+fault_5,False,,3,iforest,0.99,1.0s Window,4,4
+fault_6,True,0.9,50,iforest,0.99,1.0s Window,4,4
+fault_7,True,0.9,40,iforest,0.99,1.0s Window,4,4
+fault_8,True,0.9,25,iforest,0.99,1.0s Window,4,4
+fault_9,False,,8,iforest,0.99,1.0s Window,4,4
+fault_0,False,,4,iforest,0.99,0.5s Window,4,4
+fault_1,True,0.4,50,iforest,0.99,0.5s Window,4,4
+fault_10,False,,4,iforest,0.99,0.5s Window,4,4
+fault_11,True,0.4,50,iforest,0.99,0.5s Window,4,4
+fault_12,True,0.4,42,iforest,0.99,0.5s Window,4,4
+fault_13,True,0.4,28,iforest,0.99,0.5s Window,4,4
+fault_14,True,0.4,15,iforest,0.99,0.5s Window,4,4
+fault_15,True,1.6,50,iforest,0.99,0.5s Window,4,4
+fault_16,True,0.4,50,iforest,0.99,0.5s Window,4,4
+fault_17,True,0.4,36,iforest,0.99,0.5s Window,4,4
+fault_18,True,0.9,24,iforest,0.99,0.5s Window,4,4
+fault_19,False,,10,iforest,0.99,0.5s Window,4,4
+fault_2,True,1.3,47,iforest,0.99,0.5s Window,4,4
+fault_20,True,1.2,15,iforest,0.99,0.5s Window,4,4
+fault_3,True,2.1,31,iforest,0.99,0.5s Window,4,4
+fault_4,True,0.4,18,iforest,0.99,0.5s Window,4,4
+fault_5,False,,3,iforest,0.99,0.5s Window,4,4
+fault_6,True,0.4,50,iforest,0.99,0.5s Window,4,4
+fault_7,True,0.4,40,iforest,0.99,0.5s Window,4,4
+fault_8,True,0.5,25,iforest,0.99,0.5s Window,4,4
+fault_9,True,0.4,8,iforest,0.99,0.5s Window,4,4
+fault_0,True,0.2,4,iforest,0.99,Sample-level,4,4
+fault_1,True,0.2,50,iforest,0.99,Sample-level,4,4
+fault_10,True,0.2,4,iforest,0.99,Sample-level,4,4
+fault_11,True,4.2,50,iforest,0.99,Sample-level,4,4
+fault_12,True,0.2,42,iforest,0.99,Sample-level,4,4
+fault_13,True,0.2,28,iforest,0.99,Sample-level,4,4
+fault_14,True,0.2,15,iforest,0.99,Sample-level,4,4
+fault_15,True,3.4,50,iforest,0.99,Sample-level,4,4
+fault_16,True,0.2,50,iforest,0.99,Sample-level,4,4
+fault_17,True,0.2,36,iforest,0.99,Sample-level,4,4
+fault_18,True,1.1,24,iforest,0.99,Sample-level,4,4
+fault_19,False,,10,iforest,0.99,Sample-level,4,4
+fault_2,True,1.5,47,iforest,0.99,Sample-level,4,4
+fault_20,False,,15,iforest,0.99,Sample-level,4,4
+fault_3,False,,31,iforest,0.99,Sample-level,4,4
+fault_4,True,0.5,18,iforest,0.99,Sample-level,4,4
+fault_5,True,0.2,3,iforest,0.99,Sample-level,4,4
+fault_6,True,0.2,50,iforest,0.99,Sample-level,4,4
+fault_7,True,0.2,40,iforest,0.99,Sample-level,4,4
+fault_8,True,1.8,25,iforest,0.99,Sample-level,4,4
+fault_9,True,0.2,8,iforest,0.99,Sample-level,4,4
+fault_0,True,0.2,4,iforest,0.99,OR_3,4,4
+fault_1,True,0.2,50,iforest,0.99,OR_3,4,4
+fault_10,True,0.2,4,iforest,0.99,OR_3,4,4
+fault_11,True,0.4,50,iforest,0.99,OR_3,4,4
+fault_12,True,0.2,42,iforest,0.99,OR_3,4,4
+fault_13,True,0.2,28,iforest,0.99,OR_3,4,4
+fault_14,True,0.2,15,iforest,0.99,OR_3,4,4
+fault_15,True,0.9,50,iforest,0.99,OR_3,4,4
+fault_16,True,0.2,50,iforest,0.99,OR_3,4,4
+fault_17,True,0.2,36,iforest,0.99,OR_3,4,4
+fault_18,True,0.9,24,iforest,0.99,OR_3,4,4
+fault_19,False,,10,iforest,0.99,OR_3,4,4
+fault_2,True,1.3,47,iforest,0.99,OR_3,4,4
+fault_20,True,0.9,15,iforest,0.99,OR_3,4,4
+fault_3,True,1.1,31,iforest,0.99,OR_3,4,4
+fault_4,True,0.4,18,iforest,0.99,OR_3,4,4
+fault_5,True,0.2,3,iforest,0.99,OR_3,4,4
+fault_6,True,0.2,50,iforest,0.99,OR_3,4,4
+fault_7,True,0.2,40,iforest,0.99,OR_3,4,4
+fault_8,True,0.5,25,iforest,0.99,OR_3,4,4
+fault_9,True,0.2,8,iforest,0.99,OR_3,4,4
+fault_0,True,0.3,4,iforest,0.99,OR_3 + P2,4,4
+fault_1,True,0.3,50,iforest,0.99,OR_3 + P2,4,4
+fault_10,True,0.3,4,iforest,0.99,OR_3 + P2,4,4
+fault_11,True,0.5,50,iforest,0.99,OR_3 + P2,4,4
+fault_12,True,0.3,42,iforest,0.99,OR_3 + P2,4,4
+fault_13,True,0.3,28,iforest,0.99,OR_3 + P2,4,4
+fault_14,True,0.3,15,iforest,0.99,OR_3 + P2,4,4
+fault_15,True,1.0,50,iforest,0.99,OR_3 + P2,4,4
+fault_16,True,0.3,50,iforest,0.99,OR_3 + P2,4,4
+fault_17,True,0.3,36,iforest,0.99,OR_3 + P2,4,4
+fault_18,True,1.0,24,iforest,0.99,OR_3 + P2,4,4
+fault_19,False,,10,iforest,0.99,OR_3 + P2,4,4
+fault_2,True,1.4,47,iforest,0.99,OR_3 + P2,4,4
+fault_20,True,1.0,15,iforest,0.99,OR_3 + P2,4,4
+fault_3,True,2.2,31,iforest,0.99,OR_3 + P2,4,4
+fault_4,True,0.5,18,iforest,0.99,OR_3 + P2,4,4
+fault_5,False,,3,iforest,0.99,OR_3 + P2,4,4
+fault_6,True,0.3,50,iforest,0.99,OR_3 + P2,4,4
+fault_7,True,0.3,40,iforest,0.99,OR_3 + P2,4,4
+fault_8,True,0.6,25,iforest,0.99,OR_3 + P2,4,4
+fault_9,True,0.3,8,iforest,0.99,OR_3 + P2,4,4

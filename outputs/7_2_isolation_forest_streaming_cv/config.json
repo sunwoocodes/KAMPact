@@ -1,0 +1,31 @@
+{
+  "normal_path": "data/press_data_normal_with_idle.csv",
+  "fault_path": "data/outlier_data.csv",
+  "output_dir": "outputs/7_2_isolation_forest_streaming_cv",
+  "models": "both",
+  "n_splits": 5,
+  "repeats": 5,
+  "seed": 0,
+  "quantiles": [
+    0.99,
+    0.995,
+    0.999,
+    0.9995,
+    0.9999
+  ],
+  "quantile": null,
+  "n_estimators": 100,
+  "max_samples": "auto",
+  "max_features": 1.0,
+  "models_evaluated": [
+    "mahalanobis",
+    "iforest"
+  ],
+  "repeats_completed": 5,
+  "python": "3.11.9",
+  "numpy": "2.4.6",
+  "pandas": "3.0.6",
+  "scikit_learn": "1.9.1",
+  "elapsed_sec": 2741.0,
+  "protocol": "StreamingDetector structure (OR_3 + P2); normal-only train/calibration; held-out segment test; shared fold map with 12_streaming_cv.py; one streaming pass per fold, per-quantile alarms derived from stored scores and verified against step() at the largest quantile"
+}

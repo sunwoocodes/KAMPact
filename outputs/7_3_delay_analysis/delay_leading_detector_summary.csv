@@ -1,0 +1,7 @@
+﻿leading,evaluations,events,mean_delay,min_delay,max_delay,share_pct
+sample,61,13,0.302,0.3,0.4,61.616
+sample+win05,4,1,0.5,0.5,0.5,4.04
+sample+win05+win1,5,1,1.0,1.0,1.0,5.051
+win05,15,4,0.56,0.5,0.8,15.152
+win05+win1,4,1,1.0,1.0,1.0,4.04
+win1,10,3,1.41,1.0,2.2,10.101
