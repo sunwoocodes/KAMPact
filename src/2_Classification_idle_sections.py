@@ -22,7 +22,7 @@ df_normal.loc[idle_mask, 'Idle'] = 1
 df_normal = df_normal.drop(columns=['TimeStamp_dt'])
 
 # 7. 결과를 새로운 CSV 파일로 저장
-output_filename = 'press_data_normal_with_idle.csv'
+output_filename = 'data/press_data_normal_with_idle.csv'
 df_normal.to_csv(output_filename, index=False)
 
 # 결과 확인 출력

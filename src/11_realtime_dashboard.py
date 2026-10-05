@@ -474,6 +474,66 @@ def score_ratio(score: float, thr: float) -> float:
         return np.nan
     return float(score / thr)
 
+def load_offline_performance(root: Path) -> dict:
+    """
+    Stage 8에서 계산한 최종 OR_3_P2 Offline CV 성능을 읽는다.
+    Replay 성능과 별도로 표시하기 위한 용도.
+    """
+    path = root / "outputs" / "6_three_detector_ensemble" / "ensemble_summary.csv"
+
+    if not path.exists():
+        return {}
+
+    try:
+        df = pd.read_csv(path)
+
+        rows = df[
+            df["combo"].astype(str).eq("OR_3_P2")
+        ]
+
+        if rows.empty:
+            return {}
+
+        row = rows.iloc[0]
+
+        return {
+            "event_detection_rate": float(
+                row["event_detection_rate_mean"]
+            ),
+            "event_detection_rate_std": float(
+                row["event_detection_rate_std"]
+            ),
+            "delay_mean_sec": float(
+                row["delay_mean_sec_mean"]
+            ),
+            "delay_std_sec": float(
+                row["delay_mean_sec_std"]
+            ),
+            "sample_f1": float(
+                row["sample_f1_mean"]
+            ),
+            "sample_f1_std": float(
+                row["sample_f1_std"]
+            ),
+            "normal_fa_cycle_rate": float(
+                row["normal_fa_cycle_rate_mean"]
+            ),
+            "normal_fa_cycle_rate_std": float(
+                row["normal_fa_cycle_rate_std"]
+            ),
+            "idle_fa_cycle_rate": float(
+                row["idle_fa_cycle_rate_mean"]
+            ),
+            "idle_fa_cycle_rate_std": float(
+                row["idle_fa_cycle_rate_std"]
+            ),
+            "n_events": int(row["n_events"]),
+            "repeats": int(row["repeats"]),
+        }
+
+    except Exception:
+        return {}
+
 
 def short_feature_name(name: str) -> str:
     short = name.replace("AI0_Vibration", "A0").replace("AI1_Vibration", "A1").replace("AI2_Current", "A2").replace("AI0_AI1_corr", "A0-A1 corr")
@@ -484,19 +544,63 @@ def short_feature_name(name: str) -> str:
 
 
 def get_feature_snapshot(detector: StreamingDetector) -> dict[str, float]:
-    """Read the exact causal feature state currently held by core_detector."""
+    """
+    현재 StreamingDetector가 보유한 causal 상태를 그대로 읽어
+    대시보드의 Feature Table에 표시한다.
+
+    중요:
+    실제 detector의 window feature 계산과 동일하게
+    detector.time_buffer의 실제 timestamp를 사용한다.
+    따라서 화면에 보이는 slope가 실제 추론에 사용되는 slope와 일치한다.
+    """
     values = list(detector.raw_buffer)
+    times = list(detector.time_buffer)
+
     out: dict[str, float] = {}
 
+    # -------------------------------------------------------------
+    # 0.5초 Window = 최근 5 samples
+    # -------------------------------------------------------------
     if len(values) >= detector.win05_size:
-        arr = np.asarray(values[-detector.win05_size:], dtype=float)
-        feat = detector._extract_window_features(arr)
-        out.update({f"W05_{name}": float(v) for name, v in zip(WINDOW_FEATURES, feat)})
+        arr = np.asarray(
+            values[-detector.win05_size:],
+            dtype=float,
+        )
+        ts = np.asarray(
+            times[-detector.win05_size:]
+        )
 
+        feat = detector._extract_window_features(
+            arr,
+            ts,
+        )
+
+        out.update({
+            f"W05_{name}": float(v)
+            for name, v in zip(WINDOW_FEATURES, feat)
+        })
+
+    # -------------------------------------------------------------
+    # 1.0초 Window = 최근 10 samples
+    # -------------------------------------------------------------
     if len(values) >= detector.win1_size:
-        arr = np.asarray(values[-detector.win1_size:], dtype=float)
-        feat = detector._extract_window_features(arr)
-        out.update({f"W10_{name}": float(v) for name, v in zip(WINDOW_FEATURES, feat)})
+        arr = np.asarray(
+            values[-detector.win1_size:],
+            dtype=float,
+        )
+        ts = np.asarray(
+            times[-detector.win1_size:]
+        )
+
+        feat = detector._extract_window_features(
+            arr,
+            ts,
+        )
+
+        out.update({
+            f"W10_{name}": float(v)
+            for name, v in zip(WINDOW_FEATURES, feat)
+        })
 
     return out
 
@@ -845,6 +949,16 @@ def main() -> None:
         if start_ui["ready"]:
             start_ui["go"] = True
 
+    def _on_key_press(event):
+        key = str(getattr(event, "key", "")).lower()
+
+        print(f"[KEY] {key}")
+
+        if key in ("enter", "return", " ", "space"):
+            if start_ui["ready"]:
+                start_ui["go"] = True
+                print("[READY] Enter 입력 → 실시간 추론으로 이동")
+
     start_btn.on_clicked(_on_start)
     fig_p.canvas.mpl_connect(
         "key_press_event",
@@ -1189,9 +1303,15 @@ def main() -> None:
 
     # 키 입력은 창에 포커스가 있어야 받으므로 포커스를 가져오고(Tk), 터미널에서 Enter 를 눌러도 이동되게 한다.
     try:
-        _win = fig_p.canvas.manager.window
-        _win.lift()
-        _win.focus_force()
+        window = fig_p.canvas.manager.window
+        window.lift()
+        window.focus_force()
+
+        # Tk backend일 경우 캔버스를 다시 포커스 가능하게 설정
+        if hasattr(window, "attributes"):
+            window.attributes("-topmost", True)
+            window.after(100, lambda: window.attributes("-topmost", False))
+
     except Exception:
         pass
     if sys.stdin is not None and sys.stdin.isatty():
@@ -1379,22 +1499,103 @@ def main() -> None:
                         alpha=0.10, linewidth=0, step="mid"
                     ))
 
-    # 최종 모델 / 입력 설정 요약 카드 (파이프라인 단계 목록은 1번 창에 있으므로 여기서는 요약만)
-    style_card(ax_pipe, "최종 모델 / 입력 설정", "1번 창 파이프라인 요약")
-    model_text = mono_text(ax_pipe, 0.06, 0.95, size=7.9)
+    # --------------------------------------------------------
+    # 최종 모델 / Offline 성능
+    # 왼쪽: Offline CV 성능
+    # 오른쪽: 최종 모델 설정 / 기준값 / 입력
+    # --------------------------------------------------------
+
+    style_card(
+        ax_pipe,
+        "최종 모델 / Offline 성능",
+        "최종 배포 detector · Stage 8 OR_3_P2 CV",
+    )
+
     _th = fit_info["thresholds"]
+    offline_perf = load_offline_performance(root)
+
+    # 왼쪽: Offline 성능
+    offline_text = ax_pipe.text(
+        0.055,
+        0.91,
+        "",
+        transform=ax_pipe.transAxes,
+        va="top",
+        ha="left",
+        fontsize=7.2,
+        family=MONO_FONT,
+        color=C["text"],
+        linespacing=1.45,
+    )
+
+    # 가운데 구분선
+    ax_pipe.plot(
+        [0.48, 0.48],
+        [0.08, 0.94],
+        transform=ax_pipe.transAxes,
+        color=C["dim"],
+        lw=0.8,
+        ls="--",
+    )
+
+    # 오른쪽: 모델 설정 / 기준값
+    model_text = ax_pipe.text(
+        0.52,
+        0.91,
+        "",
+        transform=ax_pipe.transAxes,
+        va="top",
+        ha="left",
+        fontsize=7.2,
+        family=MONO_FONT,
+        color=C["text"],
+        linespacing=1.45,
+    )
+
+    if offline_perf:
+        offline_text.set_text(
+            "OFFLINE CV\n"
+            + "-" * 19 + "\n"
+            f"CV            {offline_perf['repeats']}회 반복\n"
+            f"Fault event   {offline_perf['n_events']}개\n"
+            "\n"
+            f"Event 탐지율  "
+            f"{offline_perf['event_detection_rate'] * 100:.1f}%\n"
+            f"평균 지연      "
+            f"{offline_perf['delay_mean_sec']:.3f}s\n"
+            f"Sample F1      "
+            f"{offline_perf['sample_f1']:.3f}\n"
+            f"Normal FA      "
+            f"{offline_perf['normal_fa_cycle_rate'] * 100:.2f}%\n"
+            f"Idle FA        "
+            f"{offline_perf['idle_fa_cycle_rate'] * 100:.2f}%"
+        )
+    else:
+        offline_text.set_text(
+            "OFFLINE CV\n"
+            + "-" * 19 + "\n"
+            "성능 산출물 없음"
+        )
+
+
     model_text.set_text(
-        "\n".join(board.pipeline_summary_lines()) + "\n" + "-" * 34 + "\n"
+        "MODEL / THRESHOLD\n"
+        + "-" * 19 + "\n"
         f"앙상블        OR_3 + P{PIPELINE_CONFIG['persistence_p']}\n"
         f"분위수        q={detector.quantile:.4f}\n"
-        f"윈도우        0.5초 / 1.0초 + 샘플 mean{PIPELINE_CONFIG['sample_agg_k']}\n"
         f"공분산        Ledoit-Wolf\n"
-        f"학습 / 보정   {fit_info['train_rows']:,} / {fit_info['calibration_rows']:,}\n"
-        f"기준값        샘플 {_th['sample']:.2f}\n"
-        f"              0.5초 {_th['win05']:.2f}\n"
-        f"              1.0초 {_th['win1']:.2f}\n"
-        f"입력          CSV replay {fps_eff:.0f}Hz (x{replay_x:.1f})\n"
-        "처리          causal / row-by-row\n"
+        "\n"
+        f"학습 / 보정   "
+        f"{fit_info['train_rows']:,} / "
+        f"{fit_info['calibration_rows']:,}\n"
+        "\n"
+        "기준값\n"
+        f"  Sample     {_th['sample']:.2f}\n"
+        f"  0.5초       {_th['win05']:.2f}\n"
+        f"  1.0초       {_th['win1']:.2f}\n"
+        "\n"
+        f"입력          CSV replay\n"
+        f"처리          causal / row-by-row\n"
         "look-ahead    없음"
     )
 
@@ -1472,6 +1673,15 @@ def main() -> None:
     last_feature_frame = -1
     last_axis_frame = -1
     log_rows: list[dict[str, object]] = []
+    # Gap-separated Fault event history
+    fault_event_counter = 0
+    current_fault_event_id = None
+    current_fault_event_start = None
+    current_fault_event_gap = None
+    current_fault_event_alarm = None
+
+    event_history = []
+    previous_kind = None
 
     fault_original_first = pd.to_datetime(fault_raw["TimeStamp"], errors="coerce").dropna().iloc[0]
 
@@ -1502,6 +1712,13 @@ def main() -> None:
         nonlocal first_fault_time, first_alarm_time, false_alarm_frames
         nonlocal last_feature_frame, last_axis_frame
 
+        nonlocal fault_event_counter
+        nonlocal current_fault_event_id
+        nonlocal current_fault_event_start
+        nonlocal current_fault_event_gap
+        nonlocal current_fault_event_alarm
+        nonlocal previous_kind
+
         row = demo_df.iloc[frame_idx]
         source = str(row["block"])
         original_timestamp = row["orig_TimeStamp"]
@@ -1523,6 +1740,57 @@ def main() -> None:
         ai0 = float(record["AI0_Vibration"])
         ai1 = float(record["AI1_Vibration"])
         ai2 = float(record["AI2_Current"])
+
+
+        # --------------------------------------------------------
+        # Gap-separated Fault event tracking
+        # --------------------------------------------------------
+
+        new_fault_event = (
+            kind == "fault"
+            and (
+                previous_kind != "fault"
+                or bool(record["segment_reset"])
+            )
+        )
+
+        if new_fault_event:
+            fault_event_counter += 1
+
+            current_fault_event_id = fault_event_counter
+            current_fault_event_start = timestamp
+            current_fault_event_gap = float(record["gap_seconds"])
+            current_fault_event_alarm = None
+
+            event_history.append({
+                "event_id": fault_event_counter,
+                "fault_start": timestamp,
+                "gap_sec": current_fault_event_gap,
+                "first_alarm": None,
+                "delay_sec": None,
+                "detected": False,
+            })
+
+
+        # 현재 Fault event에서 최초 P2 탐지
+        if kind == "fault" and event_history:
+            current_event = event_history[-1]
+
+            if (
+                result["final_alarm"]
+                and current_fault_event_alarm is None
+            ):
+                current_fault_event_alarm = timestamp
+
+                current_event["first_alarm"] = timestamp
+                current_event["delay_sec"] = (
+                    timestamp - current_fault_event_start
+                ).total_seconds()
+                current_event["detected"] = True
+
+
+        previous_kind = kind
+
 
         if kind == "fault" and first_fault_time is None:
             first_fault_time = timestamp
@@ -1660,17 +1928,126 @@ def main() -> None:
             f"진행          {frame_idx + 1}/{total_stream_frames}"
         )
 
+        # --------------------------------------------------------
+        # 가장 최근 Fault event의 Gap / 탐지 지연만 표시
+        # --------------------------------------------------------
+
+        latest_event_text = "-"
+
+        if event_history:
+            ev = event_history[-1]
+
+            if ev["detected"]:
+                latest_event_text = (
+                    f"E{int(ev['event_id']):02d}  "
+                    f"gap {float(ev['gap_sec']):.2f}s  "
+                    f"delay {float(ev['delay_sec']):.2f}s ✓"
+                )
+
+            elif (
+                ev["event_id"] == current_fault_event_id
+                and current_fault_event_start is not None
+            ):
+                elapsed = (
+                    timestamp - current_fault_event_start
+                ).total_seconds()
+
+                latest_event_text = (
+                    f"E{int(ev['event_id']):02d}  "
+                    f"gap {float(ev['gap_sec']):.2f}s  "
+                    f"진행 +{elapsed:.2f}s"
+                )
+
+            else:
+                latest_event_text = (
+                    f"E{int(ev['event_id']):02d}  "
+                    f"gap {float(ev['gap_sec']):.2f}s  "
+                    f"MISS ✕"
+                )
+
+
+        detected_count = sum(
+            1
+            for ev in event_history
+            if ev["detected"]
+        )
+
+
+        # 현재 처리 중인 Fault event
+        current_event_line = "현재 Fault event  -"
+
+        if (
+            current_fault_event_id is not None
+            and current_fault_event_start is not None
+        ):
+
+            # 이미 현재 event가 탐지된 경우
+            if current_fault_event_alarm is not None:
+
+                current_delay = (
+                    current_fault_event_alarm
+                    - current_fault_event_start
+                ).total_seconds()
+
+                current_event_line = (
+                    f"현재 Event   E{current_fault_event_id:02d}  "
+                    f"gap {float(current_fault_event_gap):.2f}s  "
+                    f"delay {current_delay:.2f}s"
+                )
+
+            # 마지막 프레임까지 탐지되지 않은 경우
+            elif frame_idx == total_stream_frames - 1:
+
+                current_event_line = (
+                    f"현재 Event   E{current_fault_event_id:02d}  "
+                    f"gap {float(current_fault_event_gap):.2f}s  "
+                    f"MISS"
+                )
+
+            # 현재 event가 아직 진행 중인 경우
+            else:
+
+                elapsed = (
+                    timestamp
+                    - current_fault_event_start
+                ).total_seconds()
+
+                current_event_line = (
+                    f"현재 Event   E{current_fault_event_id:02d}  "
+                    f"gap {float(current_fault_event_gap):.2f}s  "
+                    f"경과 +{elapsed:.2f}s"
+                )
+
+
         event_text.set_text(
-            f"q={detector.quantile:.4f}  OR_3+P{detector.p}  mean{detector.sample_agg_k}\n"
-            f"CSV replay {fps_eff:.0f}Hz (x{replay_x:.1f}) | causal\n"
-            f"gap > {detector.gap_threshold_sec:.1f}s 일 때만 reset\n"
-            f"fault onset     {ts_str(first_fault_time) if first_fault_time is not None else '-'}\n"
-            f"정상 오탐       {stats['normal_fp']}\n"
-            f"Idle 오탐       {stats['idle_fp']}\n"
-            f"Fault 탐지      {1 if stats['first_alarm_idx'] is not None else 0}/{1 if stats['onset_idx'] is not None else 0}"
-            f"  (알람 {stats['fault_alarm']}/{stats['fault_rows']}행)\n"
-            f"현재 상태       {final_state}\n"
-            f"추론 지연       {float(np.mean(infer_ms_list)):.1f} / p95 {float(np.percentile(infer_ms_list, 95)):.1f} ms"
+            f"q={detector.quantile:.4f}  "
+            f"OR_3+P{detector.p}  "
+            f"mean{detector.sample_agg_k}\n"
+
+            f"CSV replay {fps_eff:.0f}Hz "
+            f"(x{replay_x:.1f}) | causal\n"
+
+            f"gap > {detector.gap_threshold_sec:.1f}s "
+            f"→ 다음 Fault event로 분리\n"
+
+            f"{current_event_line}\n"
+
+            f"Event 탐지      "
+            f"{detected_count}/{fault_event_counter}\n"
+
+            f"정상 오탐        "
+            f"{stats['normal_fp']}  |  "
+            f"Idle 오탐 {stats['idle_fp']}\n"
+
+            f"최근 Gap 탐지    "
+            f"{latest_event_text}\n"
+
+            f"현재 상태        "
+            f"{final_state}\n"
+
+            f"추론 지연        "
+            f"{float(np.mean(infer_ms_list)):.1f} / "
+            f"p95 {float(np.percentile(infer_ms_list, 95)):.1f} ms"
         )
 
         if first_fault_time is not None and first_alarm_time is not None:
@@ -1726,8 +2103,13 @@ def main() -> None:
 
     plt.ioff()
     ani = animation.FuncAnimation(
-        fig, stream_update, frames=len(demo_df),
-        interval=max(1, int(1000 / fps_eff)), blit=False, repeat=False,
+        fig,
+        stream_update,
+        frames=len(demo_df),
+        init_func=lambda: [],
+        interval=max(1, int(1000 / fps_eff)),
+        blit=False,
+        repeat=False,
     )
 
     try:
