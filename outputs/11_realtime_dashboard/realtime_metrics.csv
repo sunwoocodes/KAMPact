@@ -17,6 +17,6 @@ fault_alarm_frames,453
 fault_frame_recall,0.7550
 final_alarm_frames,454
 max_score_ratio,25.3369
-infer_latency_ms_mean,2.669
-infer_latency_ms_p95,3.468
-infer_latency_ms_max,6.276
+infer_latency_ms_mean,2.592
+infer_latency_ms_p95,3.238
+infer_latency_ms_max,3.802
