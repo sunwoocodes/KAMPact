@@ -260,6 +260,13 @@ def main() -> None:
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--quantile", type=float, default=0.9999)
+    parser.add_argument(
+    "--persistence-p",
+    type=int,
+    default=2,
+    choices=[1, 2, 3],
+    help="Persistence 조건: 1, 2, 3",
+)
     parser.add_argument("--calibration-fraction", type=float, default=0.2)
     args = parser.parse_args()
 
@@ -301,7 +308,7 @@ def main() -> None:
                 win1_size=10,
                 win05_size=5,
                 sample_agg_k=3,
-                persistence_p=2,
+                persistence_p=args.persistence_p,
                 gap_threshold_sec=GAP_THRESHOLD_SEC,
                 quantile_threshold=args.quantile,
                 random_state=seed,

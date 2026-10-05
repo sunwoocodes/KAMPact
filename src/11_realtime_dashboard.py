@@ -1,6 +1,3 @@
-# KAMPact - TRUE streaming dashboard (stage monitor 개선판)
-# Paste/replace your existing 11_realtime_dashboard.py with this file.
-# 같은 src/ 폴더에 dashboard_stage_monitor.py 도 함께 두세요.
 from __future__ import annotations
 
 import argparse

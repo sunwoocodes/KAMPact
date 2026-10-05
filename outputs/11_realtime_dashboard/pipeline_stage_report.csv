@@ -1,14 +1,14 @@
 ﻿stage,label,status,seconds,summary,figures
 1,1  원본 시계열 분석,done,1.55,원본 시계열 분석 완료 | 정상/고장 센서 변동 확인,2
-2,2  Idle 라벨 생성,done,1.65,"Idle 라벨 생성 | 전체 20,000행 | Idle 3,049행",0
-3,3  시간 구조 / Segment,done,1.12,timestamp gap / segment 분석 완료 | 산출물 7개,0
-4,4  1.0초 Window Dataset,done,16.92,"1.0초 Window dataset 완료 | 12,558개 window",0
-5,5  0.5초 Window Dataset,done,20.16,"0.5초 Window dataset 완료 | 14,966개 window",0
-6,6  Window Mahalanobis,done,4.93,Window Mahalanobis CV 완료 | 설정 3개,0
-7,7  Sample Mahalanobis,done,2.54,Sample-level Mahalanobis CV 완료 | 설정 1개,0
-8,8  3-Detector Ensemble,done,27.7,3-Detector Ensemble 완료 | OR_3_P2  event 91.4% | delay 0.571s,0
-9,9  Isolation Forest,done,6.35,Isolation Forest baseline 완료 | F1 0.3898,0
-10,10 FP / FN 분석,done,10.84,FP/FN 분석 완료 | FN event 21건,0
-11,11 FN 시각화 / 변수 영향,done,9.45,FN 시각화 + 변수 영향 분석 완료 | effect 16행,6
-12,12 최종 모델 학습 / 보정,done,10.2,"최종 모델 학습 · 보정 완료 | 학습 12,985행 / 보정 3,140행 | q=0.9999  OR_3 + P2",0
-13,13 스트리밍 추론 (CSV replay),stopped,427.27,"스트리밍 1,451행 · 소요시간 = replay 경과 (추론 지연 아님)",0
+2,2  Idle 라벨 생성,done,1.63,"Idle 라벨 생성 | 전체 20,000행 | Idle 3,049행",0
+3,3  시간 구조 / Segment,done,1.14,timestamp gap / segment 분석 완료 | 산출물 7개,0
+4,4  1.0초 Window Dataset,done,17.11,"1.0초 Window dataset 완료 | 12,558개 window",0
+5,5  0.5초 Window Dataset,done,20.19,"0.5초 Window dataset 완료 | 14,966개 window",0
+6,6  Window Mahalanobis,done,5.03,Window Mahalanobis CV 완료 | 설정 3개,0
+7,7  Sample Mahalanobis,done,2.57,Sample-level Mahalanobis CV 완료 | 설정 1개,0
+8,8  3-Detector Ensemble,done,28.01,3-Detector Ensemble 완료 | OR_3_P2  event 91.4% | delay 0.571s,0
+9,9  Isolation Forest,done,6.91,Isolation Forest baseline 완료 | F1 0.3898,0
+10,10 FP / FN 분석,done,10.98,FP/FN 분석 완료 | FN event 21건,0
+11,11 FN 시각화 / 변수 영향,done,9.51,FN 시각화 + 변수 영향 분석 완료 | effect 16행,6
+12,12 최종 모델 학습 / 보정,done,10.28,"최종 모델 학습 · 보정 완료 | 학습 12,985행 / 보정 3,140행 | q=0.9999  OR_3 + P2",0
+13,13 스트리밍 추론 (CSV replay),stopped,396.0,"스트리밍 1,451행 · 소요시간 = replay 경과 (추론 지연 아님)",0

@@ -1,5 +1,5 @@
 # KAMPact - dashboard stage monitor (v3: 파이프라인 전용 창)
-# 11_realtime_dashboard.py 가 import 하는 보조 모듈입니다. (src/ 폴더에 같이 두세요)
+# 11_realtime_dashboard.py 가 import 하는 보조 모듈입니다.
 #
 #  - run_command_live : 하위 스크립트를 실행하며 stdout/stderr 를 실시간으로 흘려줌
 #  - parse_progress   : 로그 한 줄에서 진행률(37%, 3/5 ...) 추출
