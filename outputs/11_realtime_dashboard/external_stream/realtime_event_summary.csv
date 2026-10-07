@@ -1,2 +1,2 @@
 ﻿event_id,fault_start,fault_rows,detected,first_alarm,delay_sec,delay_samples,alarm_count
-1,2022-07-17 10:51:07.943,600,True,2022-07-17 10:51:08.243,0.3,3,451
+1,2022-07-17 10:51:07.943,123,True,2022-07-17 10:51:08.243,0.3,3,98

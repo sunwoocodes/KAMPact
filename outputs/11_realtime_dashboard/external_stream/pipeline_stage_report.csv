@@ -1,2 +1,2 @@
 ﻿stage,label,status,seconds,summary,figures
-13,13 스트리밍 추론,done,138.82,스트리밍 600행 · 소요시간 = replay 경과 (추론 지연 아님),0
+13,13 스트리밍 추론,stopped,35.35,TAIL 스트리밍 123행 · 파일 append 감시 방식,0

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
+import itertools
 import json
 import pickle
 import platform
@@ -760,6 +762,86 @@ def load_external_stream(path: Path) -> pd.DataFrame:
     return df
 
 
+class CSVTailReader:
+    """실행 중 append되는 외부 CSV에서 아직 읽지 않은 완성 행만 읽는다."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.f = None
+        self.columns: list[str] = []
+        self.partial = ""
+        self.ground_truth_available = False
+        self._open()
+
+    def _open(self):
+        if self.f is not None:
+            try:
+                self.f.close()
+            except Exception:
+                pass
+        self.f = open(self.path, "r", encoding="utf-8-sig", newline="")
+        header = self.f.readline()
+        if not header:
+            raise ValueError("외부 streaming CSV에 헤더가 없습니다.")
+        self.columns = next(csv.reader([header]))
+        required = ["TimeStamp", *SENSORS]
+        missing = [c for c in required if c not in self.columns]
+        if missing:
+            raise ValueError(
+                "외부 streaming CSV 필수 컬럼이 없습니다.\n"
+                f"필수 컬럼: {required}\n"
+                f"누락 컬럼: {missing}"
+            )
+        self.ground_truth_available = "Equipment_state" in self.columns
+        self.partial = ""
+
+    def read_available(self) -> list[pd.Series]:
+        if not self.path.exists():
+            return []
+        try:
+            current_size = self.path.stat().st_size
+            if current_size < self.f.tell():
+                self._open()
+        except Exception:
+            return []
+
+        chunk = self.f.read()
+        if not chunk:
+            return []
+
+        text = self.partial + chunk
+        lines = text.splitlines(keepends=True)
+        if lines and not lines[-1].endswith(("\n", "\r")):
+            self.partial = lines.pop()
+        else:
+            self.partial = ""
+
+        rows: list[pd.Series] = []
+        for line in lines:
+            if not line.strip():
+                continue
+            values = next(csv.reader([line]))
+            if len(values) != len(self.columns):
+                continue
+            row = pd.Series(dict(zip(self.columns, values)))
+            if "Idle" not in row.index:
+                row["Idle"] = 0
+            if "Equipment_state" not in row.index:
+                row["Equipment_state"] = 0
+            row["orig_TimeStamp"] = row["TimeStamp"]
+            row["block"] = "external"
+            rows.append(row)
+        return rows
+
+    def close(self):
+        if self.f is not None:
+            try:
+                self.f.close()
+            except Exception:
+                pass
+            self.f = None
+
+
 def load_saved_detector(model_dir: Path) -> StreamingDetector:
     """
     outputs/final_model/detector.pkl에 저장된
@@ -949,6 +1031,25 @@ def main() -> None:
             "외부 스트리밍 결과 저장 디렉터리"
         ),
     )
+
+    parser.add_argument(
+        "--tail",
+        action="store_true",
+        help=(
+            "외부 CSV를 계속 감시합니다. 파일에 새 행이 추가되고 "
+            "줄바꿈까지 완료되면 즉시 순차 처리합니다."
+        ),
+    )
+
+    parser.add_argument(
+        "--tail-poll-interval",
+        type=float,
+        default=0.05,
+        help=(
+            "외부 CSV 새 데이터 확인 주기(초). 기본값 0.05초."
+        ),
+    )
+
     parser.add_argument(
         "--reuse-results", action="store_true",
         help="1~11 산출물이 이미 있으면 해당 단계를 다시 실행하지 않고 재사용합니다.",
@@ -961,6 +1062,10 @@ def main() -> None:
 
     if (args.fps is not None and args.fps <= 0) or args.replay_speed <= 0 or args.feature_update_every < 1 or args.axis_update_every < 1:
         raise ValueError("fps / feature-update-every / axis-update-every must be positive.")
+    if args.tail_poll_interval <= 0:
+        raise ValueError("tail-poll-interval must be positive.")
+    if args.tail and not args.stream_path:
+        raise ValueError("--tail 사용 시 --stream-path가 필요합니다.")
     if args.plot_window < 20:
         raise ValueError("plot-window must be >= 20.")
     if args.demo_normal_samples < 1 or args.demo_idle_samples < 1:
@@ -996,6 +1101,8 @@ def main() -> None:
     PREPROCESS_STEPS[:] = stage_labels
 
     external_mode = args.stream_path is not None
+    tail_reader = None
+    initial_tail_rows: list[pd.Series] = []
 
     if external_mode:
 
@@ -1009,9 +1116,19 @@ def main() -> None:
                 f"외부 streaming CSV가 없습니다: {stream_path}"
             )
 
-        stream_df = load_external_stream(
-            stream_path
-        )
+        tail_reader = None
+
+        if args.tail:
+            tail_reader = CSVTailReader(stream_path)
+            initial_tail_rows = tail_reader.read_available()
+            stream_df = pd.DataFrame(initial_tail_rows, columns=tail_reader.columns)
+            if stream_df.empty:
+                stream_df = pd.DataFrame(columns=tail_reader.columns)
+            stream_df.attrs["ground_truth_available"] = tail_reader.ground_truth_available
+        else:
+            stream_df = load_external_stream(
+                stream_path
+            )
 
         # ----------------------------------------------------------
         # 저장된 최종 detector 로드
@@ -1073,17 +1190,24 @@ def main() -> None:
             0,
         )
 
-        nominal_dt = nominal_interval(
-            stream_df["TimeStamp"]
-        )
-
-        fps_eff = (
-            float(args.fps)
-            if args.fps is not None
-            else args.replay_speed / nominal_dt
-        )
-
-        replay_x = fps_eff * nominal_dt
+        if args.tail:
+            nominal_dt = (
+                nominal_interval(stream_df["TimeStamp"])
+                if len(stream_df) >= 2
+                else 0.1
+            )
+            fps_eff = 1.0 / nominal_dt if nominal_dt > 0 else 10.0
+            replay_x = 1.0
+        else:
+            nominal_dt = nominal_interval(
+                stream_df["TimeStamp"]
+            )
+            fps_eff = (
+                float(args.fps)
+                if args.fps is not None
+                else args.replay_speed / nominal_dt
+            )
+            replay_x = fps_eff * nominal_dt
 
         # 기존 13단계 대시보드는 board를
         # 마지막 report 생성 시 사용한다.
@@ -1983,6 +2107,9 @@ def main() -> None:
 
     # Clear the feature table state only after the first stream row arrives.
     total_stream_frames = len(demo_df)
+    tail_mode = bool(external_mode and args.tail)
+    tail_processed_rows = 0
+    tail_pending_rows: deque[pd.Series] = deque(initial_tail_rows if tail_mode else [])
     infer_ms_list: list[float] = []
     replay_t = {"t0": None}
     stats = dict(normal_fp=0, idle_fp=0, fault_rows=0, fault_alarm=0, onset_idx=None, first_alarm_idx=None)
@@ -1997,8 +2124,26 @@ def main() -> None:
         nonlocal current_fault_event_gap
         nonlocal current_fault_event_alarm
         nonlocal previous_kind
+        nonlocal tail_processed_rows, tail_pending_rows
 
-        row = demo_df.iloc[frame_idx]
+        if tail_mode:
+            if tail_reader is not None:
+                new_rows = tail_reader.read_available()
+                if new_rows:
+                    tail_pending_rows.extend(new_rows)
+            if not tail_pending_rows:
+                return []
+            row = tail_pending_rows.popleft()
+            frame_idx = tail_processed_rows
+            tail_processed_rows += 1
+        else:
+            row = demo_df.iloc[frame_idx]
+
+        is_last_frame = (
+            not tail_mode
+            and frame_idx == total_stream_frames - 1
+        )
+
         source = str(row["block"])
         original_timestamp = row["orig_TimeStamp"]
 
@@ -2158,8 +2303,14 @@ def main() -> None:
                     max(10.0, float(ratio_all.max()) * 2.5),
                 )
 
-        set_pill(pill_phase, "완료" if frame_idx == total_stream_frames - 1 else "리플레이",
-                 C["green"] if frame_idx == total_stream_frames - 1 else C["blue"])
+        if tail_mode:
+            set_pill(pill_phase, "스트리밍", C["blue"])
+        else:
+            set_pill(
+                pill_phase,
+                "완료" if is_last_frame else "리플레이",
+                C["green"] if is_last_frame else C["blue"],
+            )
         truth_label = (
             {"normal": "정상", "idle": "유휴", "fault": "고장"}.get(kind, "-")
             if ground_truth_available
@@ -2204,6 +2355,12 @@ def main() -> None:
         for spine in ax_det.spines.values():
             spine.set_color(det_color if result["final_alarm"] else C["border"])
 
+        progress_label = (
+            f"{frame_idx + 1:,}행"
+            if tail_mode
+            else f"{frame_idx + 1:,}/{total_stream_frames:,}행"
+        )
+
         live_text.set_text(
             f"입력 블록     {source.upper()}\n"
             f"원본 시간     {ts_str(record['orig_timestamp'])}\n"
@@ -2217,7 +2374,7 @@ def main() -> None:
             f"세그먼트      {record['group_id']}\n"
             f"Gap           {record['gap_seconds']:.3f}초\n"
             f"Segment reset {'예' if record['segment_reset'] else '아니오'}\n"
-            f"진행          {frame_idx + 1}/{total_stream_frames}"
+            f"진행          {progress_label}"
         )
 
         # --------------------------------------------------------
@@ -2311,37 +2468,29 @@ def main() -> None:
                 )
 
 
+        stream_mode_line = (
+            f"External CSV TAIL poll {args.tail_poll_interval * 1000:.0f}ms | causal\n"
+            if tail_mode
+            else f"{'External CSV' if external_mode else 'CSV replay'} {fps_eff:.0f}Hz (x{replay_x:.1f}) | causal\n"
+        )
+
         event_text.set_text(
             f"q={detector.quantile:.4f}  "
             f"OR_3+P{detector.p}  "
             f"mean{detector.sample_agg_k}\n"
-
             f"GT              {'있음' if ground_truth_available else '없음 (추론만)'}\n"
-
-            f"{'External CSV' if external_mode else 'CSV replay'} "
-            f"{fps_eff:.0f}Hz "
-            f"(x{replay_x:.1f}) | causal\n"
-
-            f"gap > {detector.gap_threshold_sec:.1f}s "
-            f"→ 다음 Fault event로 분리\n"
-
-            f"{current_event_line}\n"
-
-            f"Event 탐지      "
+            + stream_mode_line
+            + f"gap > {detector.gap_threshold_sec:.1f}s "
+            + f"→ 다음 Fault event로 분리\n"
+            + f"{current_event_line}\n"
+            + f"Event 탐지      "
             + (f"{detected_count}/{fault_event_counter}" if ground_truth_available else "평가 불가") + "\n"
-
-            f"정상 오탐        "
+            + f"정상 오탐        "
             + (f"{stats['normal_fp']}  |  Idle 오탐 {stats['idle_fp']}" if ground_truth_available else "평가 불가") + "\n"
-
-            f"최근 Gap 탐지    "
-            f"{latest_event_text}\n"
-
-            f"현재 상태        "
-            f"{final_state}\n"
-
-            f"추론 지연        "
-            f"{float(np.mean(infer_ms_list)):.1f} / "
-            f"p95 {float(np.percentile(infer_ms_list, 95)):.1f} ms"
+            + f"최근 Gap 탐지    {latest_event_text}\n"
+            + f"현재 상태        {final_state}\n"
+            + f"추론 지연        {float(np.mean(infer_ms_list)):.1f} / "
+            + f"p95 {float(np.percentile(infer_ms_list, 95)):.1f} ms"
         )
 
         if not ground_truth_available:
@@ -2388,35 +2537,52 @@ def main() -> None:
             "state": "ALARM" if result["final_alarm"] else "WARNING" if result["or3_base"] else "정상",
             "active_detectors": ",".join(result["active_detectors"]),
         })
-        hdr_overall.set_text(
-            "STREAMING 대기  ·  "
-            + (
-                "저장 모델"
-                if external_mode
-                else "PIPELINE 12/12 완료"
-            )
-        )
-        progress_bar.set_width((frame_idx + 1) / total_stream_frames)
-        if frame_idx == total_stream_frames - 1:
+        if tail_mode:
             hdr_overall.set_text(
-                (
+                "저장 모델  ·  TAIL STREAMING  ·  "
+                f"{frame_idx + 1:,}행 처리"
+            )
+            progress_bar.set_width(1.0)
+        else:
+            hdr_overall.set_text(
+                "STREAMING  ·  "
+                + (
                     "저장 모델"
                     if external_mode
                     else "PIPELINE 12/12 완료"
                 )
-                + f"  ·  STREAMING "
-                f"{(frame_idx + 1) / total_stream_frames * 100:.0f}%"
-                f" ({frame_idx + 1:,}/{total_stream_frames:,}행)"
             )
+            progress_bar.set_width(
+                (frame_idx + 1) / total_stream_frames
+            )
+            if is_last_frame:
+                hdr_overall.set_text(
+                    (
+                        "저장 모델"
+                        if external_mode
+                        else "PIPELINE 12/12 완료"
+                    )
+                    + f"  ·  STREAMING "
+                    f"{(frame_idx + 1) / total_stream_frames * 100:.0f}%"
+                    f" ({frame_idx + 1:,}/{total_stream_frames:,}행)"
+                )
         return []
 
     plt.ioff()
+
+    if tail_mode:
+        animation_frames = itertools.count()
+        animation_interval = max(10, int(args.tail_poll_interval * 1000))
+    else:
+        animation_frames = len(demo_df)
+        animation_interval = max(1, int(1000 / fps_eff))
+
     ani = animation.FuncAnimation(
         fig,
         stream_update,
-        frames=len(demo_df),
+        frames=animation_frames,
         init_func=lambda: [],
-        interval=max(1, int(1000 / fps_eff)),
+        interval=animation_interval,
         blit=False,
         repeat=False,
     )
@@ -2424,6 +2590,9 @@ def main() -> None:
     try:
         plt.show()
     finally:
+        if tail_reader is not None:
+            tail_reader.close()
+
         output_path = output_dir / "realtime_log.csv"
         if log_rows:
             pd.DataFrame(log_rows).to_csv(output_path, index=False, encoding="utf-8-sig")
@@ -2439,14 +2608,25 @@ def main() -> None:
         ) + [dict(
             stage=13,
             label=stage_labels[12],
-            status="done" if len(log_rows) == total_stream_frames else "stopped",
+            status=(
+                "stopped"
+                if tail_mode
+                else "done" if len(log_rows) == total_stream_frames else "stopped"
+            ),
             seconds=None if replay_t["t0"] is None else round(
                 time.time() - replay_t["t0"],
                 2,
             ),
             summary=(
-                f"스트리밍 {len(log_rows):,}행 "
-                "· 소요시간 = replay 경과 (추론 지연 아님)"
+                (
+                    f"TAIL 스트리밍 {len(log_rows):,}행 "
+                    "· 파일 append 감시 방식"
+                )
+                if tail_mode
+                else (
+                    f"스트리밍 {len(log_rows):,}행 "
+                    "· 소요시간 = replay 경과 (추론 지연 아님)"
+                )
             ),
             figures=0,
         )]
@@ -2482,6 +2662,7 @@ def main() -> None:
             f"Deployment quantile         : {detector.quantile:.4f}",
             f"Deployment thresholds       : {fit_info['thresholds']}",
             f"Streaming rows              : {len(log_rows):,}",
+            f"Streaming mode              : {'CSV tail' if tail_mode else 'CSV replay'}",
             f"Ground truth available      : {ground_truth_available}",
             f"Fault onset                 : {first_fault_time}",
             f"First alarm                 : {first_alarm_time}",

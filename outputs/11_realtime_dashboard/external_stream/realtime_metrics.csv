@@ -1,5 +1,5 @@
 ﻿metric,value
-streaming_rows,600
+streaming_rows,123
 nominal_sampling_sec,0.1
 fault_events,1
 fault_events_detected,1
@@ -12,11 +12,11 @@ normal_false_alarm_rate,n/a
 idle_rows,0
 idle_false_alarm_frames,0
 idle_false_alarm_rate,n/a
-fault_rows,600
-fault_alarm_frames,451
-fault_frame_recall,0.7517
-final_alarm_frames,451
-max_score_ratio,25.3369
-infer_latency_ms_mean,2.972
-infer_latency_ms_p95,3.663
-infer_latency_ms_max,33.025
+fault_rows,123
+fault_alarm_frames,98
+fault_frame_recall,0.7967
+final_alarm_frames,98
+max_score_ratio,14.1279
+infer_latency_ms_mean,3.183
+infer_latency_ms_p95,3.988
+infer_latency_ms_max,4.514
