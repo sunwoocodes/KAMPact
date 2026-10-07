@@ -1,34 +1,26 @@
 # KAMPact
 
-**진동·전류 시계열 기반 프레스 유압펌프 이상 조기탐지 및 오경보 분석**
+**프레스 유압펌프의 진동·전류 시계열을 이용한 이상 조기탐지 및 오경보 분석**
 
-KAMPact는 프레스 유압펌프에서 수집된 **진동·전류 시계열**을 이용해 정상 운전 패턴을 학습하고, 정상 패턴에서 벗어나는 이상을 **가능한 한 빠르게 탐지**하면서 동시에 **정상 구간의 오탐(False Positive)** 과 **고장 구간의 미탐(False Negative)** 을 분석하는 예지보전 프로젝트입니다.
+KAMPact는 프레스 유압펌프의 `AI0_Vibration`, `AI1_Vibration`, `AI2_Current` 시계열을 대상으로 정상 운전의 분포를 학습하고, 정상에서 벗어난 패턴을 **행 단위 causal streaming**으로 탐지하는 프로젝트입니다.
 
-단순한 고장 분류 문제 대신 다음을 함께 봅니다.
+핵심 목표는 단순히 F1을 높이는 것이 아니라 다음 세 가지를 함께 만족하는 것입니다.
 
 ```text
-정상 패턴 학습
-      ↓
-다중 시간 스케일 이상탐지
-      ↓
-Fault Event Detection
-      +
-Detection Delay
-      +
-Normal / Idle False Alarm
-      +
-FP / FN 원인 분석
-      ↓
-인과적(Causal) 실시간 추론
+빠른 이상 탐지
+    +
+낮은 정상 오탐
+    +
+짧은 Fault event에 대한 대응
 ```
 
-> **Detection Delay 정의:** 원본 데이터에는 물리적 고장이 실제로 발생한 별도의 ground-truth timestamp가 없으므로, 본 프로젝트의 delay는 **데이터에서 정의한 fault segment의 첫 시점부터 최초 alarm까지의 시간**입니다. 실제 물리적 고장 발생 전 예지시간을 의미하지 않습니다.
+이를 위해 `1.0s Window`, `0.5s Window`, `Sample-level`의 세 detector를 결합하고, 최종적으로 `OR_3 + P2` 구조를 사용합니다.
 
 ---
 
 ## 1. Problem
 
-대상은 프레스 유압펌프의 다음 3개 센서 시계열입니다.
+대상 센서는 다음 세 가지입니다.
 
 | Sensor | 의미 |
 |---|---|
@@ -36,31 +28,33 @@ FP / FN 원인 분석
 | `AI1_Vibration` | 진동 센서 1 |
 | `AI2_Current` | 전류 센서 |
 
-목표는 정상 운전 중의 작은 변화와 fault 패턴을 구분하면서, 현장에서 중요한 두 요소를 함께 확인하는 것입니다.
+프레스 설비 이상탐지에서는 탐지 민감도를 높일수록 정상 운전의 일시적인 변동이 오탐으로 이어질 수 있고, 반대로 오탐을 강하게 억제하면 짧은 Fault를 놓치거나 탐지 지연이 증가할 수 있습니다.
+
+KAMPact는 이를 다음 지표로 함께 평가합니다.
 
 ```text
-탐지율을 높이면
-→ 오탐이 늘어날 수 있음
-
-오탐을 줄이면
-→ 짧은 fault를 놓치거나 delay가 늘어날 수 있음
+Event Detection Rate
+Detection Delay
+Normal False Alarm Rate
+Idle False Alarm Rate
+FP / FN 조건
 ```
 
-따라서 KAMPact는 **Event Detection + Detection Delay + False Alarm**을 함께 평가하고, 마지막에는 같은 detector를 **행 단위 causal streaming**으로 실행합니다.
+최종적으로 같은 detector를 실제 입력처럼 한 행씩 받아 처리하는 streaming 구조까지 연결합니다.
 
 ---
 
 ## 2. Dataset
 
-원본 CSV는 저장소에 포함하지 않습니다.
+원본 CSV는 저장소에 포함하지 않습니다. `.gitignore`에서 `data/*.csv`와 `data/**/*.csv`를 제외합니다.
 
-현재 분석에 사용한 데이터 규모는 다음과 같습니다.
+현재 프로젝트 분석에 사용한 데이터 규모:
 
 ```text
-Normal : 20,000 rows
-Fault  : 600 rows
-Fault events : 21
-Nominal sampling interval : 0.1 sec
+Normal        : 20,000 rows
+Fault         : 600 rows
+Fault events  : 21
+Nominal dt    : 0.1 sec
 ```
 
 ### Input Schema
@@ -74,7 +68,7 @@ Equipment_state
 Idle
 ```
 
-### Label 규칙
+### Label
 
 ```text
 Equipment_state >= 1 → Fault
@@ -82,65 +76,78 @@ Equipment_state = 0  → Normal candidate
 Idle = 1              → Idle
 ```
 
-정상 데이터에는 실제 프레스가 동작하지 않는 **Idle 구간**이 포함됩니다. Idle은 정상 운전과 다른 신호 분포를 가질 수 있기 때문에 **모델 학습 및 threshold calibration에서는 제외하고 평가 단계에서 false alarm만 측정**합니다.
+정상 데이터의 Idle 구간은 정상 가동 분포와 다른 특성을 가질 수 있기 때문에 **모델 학습 및 threshold calibration에서는 제외**하고, 별도의 false-alarm 평가 대상으로 취급합니다.
+
+### Data placement
+
+클론 후 다음 파일을 직접 배치합니다.
+
+```text
+data/
+├─ press_data_normal.csv
+└─ outlier_data.csv
+```
+
+Step 2 실행 후 다음 파일이 생성됩니다.
+
+```text
+data/press_data_normal_with_idle.csv
+```
 
 ---
 
-## 3. Repository Structure
+## 3. System Overview
+
+전체 구조는 다음과 같습니다.
 
 ```text
-KAMPact/
-├─ data/
-│  ├─ press_data_normal.csv                 # 사용자가 준비하는 원본 Normal CSV
-│  ├─ outlier_data.csv                      # 사용자가 준비하는 원본 Fault CSV
-│  └─ press_data_normal_with_idle.csv       # Step 2 생성
-│
-├─ result/
-│  ├─ time_structure_analysis/
-│  ├─ modeling_dataset_1.0_0.1/
-│  └─ modeling_dataset_0.5_0.1/
-│
-├─ outputs/
-│  ├─ 5_2_mahalanobis_cv/
-│  ├─ 5_3_sample_level_cv/
-│  ├─ 6_three_detector_ensemble/
-│  ├─ 7_isolation_forest_baseline/
-│  ├─ 8_fp_fn_analysis/
-│  ├─ 9_fn_visualization/
-│  ├─ 10_variable_effect_analysis/
-│  ├─ 11_realtime_dashboard/
-│  ├─ 12_streaming_cv/
-│  └─ final_model/
-│
-├─ src/
-│  ├─ 1_visualize_normal_outlier.py
-│  ├─ 2_Classification_idle_sections.py
-│  ├─ 3_time_structure_analysis.py
-│  ├─ 4_make_window_dataset.py
-│  ├─ 5_run_mahalanobis.py
-│  ├─ 5_2_run_mahalanobis.py
-│  ├─ 5_3_run_sample_level_mahalanobis.py
-│  ├─ 6_compare_three_detectors.py
-│  ├─ 7_isolation_forest_baseline.py
-│  ├─ 8_fp_fn_analysis.py
-│  ├─ 9_visualize_fn_events.py
-│  ├─ 10_variable_effect_analysis.py
-│  ├─ 11_realtime_dashboard.py
-│  ├─ 12_streaming_cv.py
-│  ├─ core_detector.py
-│  └─ dashboard_stage_monitor.py
-│
-├─ requirements.txt
-└─ README.md
+                         ┌─────────────────────────┐
+                         │       Raw CSV           │
+                         │  Normal + Fault data    │
+                         └────────────┬────────────┘
+                                      │
+                                      ▼
+                         ┌─────────────────────────┐
+                         │ Data Preprocessing      │
+                         │ - timestamp validation  │
+                         │ - gap / segment         │
+                         │ - Idle classification   │
+                         └────────────┬────────────┘
+                                      │
+                                      ▼
+                ┌─────────────────────┴─────────────────────┐
+                │                                           │
+                ▼                                           ▼
+      ┌────────────────────┐                    ┌────────────────────┐
+      │ Window Detector    │                    │ Sample Detector    │
+      │                    │                    │                    │
+      │ 1.0s / 16 features │                    │ raw + first diff   │
+      │ 0.5s / 16 features │                    │ 6 features         │
+      │                    │                    │ mean-3 smoothing   │
+      └──────────┬─────────┘                    └──────────┬─────────┘
+                 │                                         │
+                 └──────────────────┬──────────────────────┘
+                                    ▼
+                              ┌────────────┐
+                              │   OR_3     │
+                              └─────┬──────┘
+                                    ▼
+                              ┌────────────┐
+                              │    P2      │
+                              └─────┬──────┘
+                                    ▼
+                              ┌────────────┐
+                              │ Final Alarm│
+                              └────────────┘
 ```
-
-`5_run_mahalanobis.py`는 초기/단일 스케일 실험 코드를 유지한 것이며, 현재 최종 파이프라인의 핵심 window CV에는 `5_2_run_mahalanobis.py`, sample-level CV에는 `5_3_run_sample_level_mahalanobis.py`가 사용됩니다.
 
 ---
 
 ## 4. End-to-End Pipeline
 
-최종 대시보드는 아래 과정을 한 번에 실행합니다.
+`src/11_realtime_dashboard.py`가 프로젝트 전체 실행을 담당합니다.
+
+### Dashboard 13단계
 
 ```text
 01  원본 시계열 분석
@@ -155,65 +162,62 @@ KAMPact/
 10  FP / FN 분석
 11  FN 시각화 + 변수 영향 분석
 12  최종 모델 학습 / Calibration
-13  Causal Streaming Inference (CSV Replay)
+13  Causal Streaming Inference
 ```
 
-대시보드의 **1번 창**은 1~12단계의 실행 현황을 보여주고, 모든 학습·보정이 끝난 뒤 **2번 창**에서 13단계 streaming replay를 실행합니다.
+중요하게 구분할 점:
+
+- **Dashboard Stage 11**은 `9_visualize_fn_events.py`와 `10_variable_effect_analysis.py`를 묶어서 실행합니다.
+- **Dashboard Stage 12**는 별도의 `12_*.py`가 아니라 `11_realtime_dashboard.py` 내부에서 최종 `StreamingDetector`를 학습/보정합니다.
+- `src/12_streaming_cv.py`는 **검증용 별도 스크립트**이며 Dashboard Stage 12가 아닙니다.
+- **Dashboard Stage 13**은 학습된 detector를 raw row 단위로 실행하는 streaming replay입니다.
 
 ---
 
-## 5. Step 1~3 — Data Understanding
+## 5. Data Preprocessing
 
-### Step 1. 원본 시계열 분석
+### 5.1 Timestamp validation
 
-`1_visualize_normal_outlier.py`
+`TimeStamp`를 datetime으로 변환하고 잘못된 timestamp를 제거합니다.
 
-정상/고장 데이터의 세 센서 시계열을 시각화하고 변동 범위를 확인합니다.
+### 5.2 Segment
 
-### Step 2. Idle 라벨 생성
-
-`2_Classification_idle_sections.py`
-
-정상 CSV의 실제 Idle 구간을 `Idle=1`로 라벨링합니다.
-
-현재 데이터에서 사용한 Idle 기준 구간은:
-
-```text
-2022-07-12 00:59:53.992
-~
-2022-07-12 01:11:32.588
-```
-
-대시보드에서는 동일 로직을 내부 fallback으로도 가지고 있어 `data/press_data_normal_with_idle.csv`가 아직 없더라도 Step 2를 완성할 수 있습니다.
-
-### Step 3. Time Structure / Segment
-
-`3_time_structure_analysis.py`
-
-timestamp gap을 분석하고 다음 기준으로 segment를 나눕니다.
+실제 timestamp 차이가 다음 조건을 만족하면 새로운 segment로 분리합니다.
 
 ```text
 gap > 0.5 sec
-→ new segment
 ```
 
-segment 단위로 분할하여 동일 cycle의 일부가 train/validation/test에 동시에 들어가는 **segment leakage**를 방지합니다.
+이 segment가 하나의 press cycle 또는 독립적인 시계열 구간의 단위가 됩니다.
+
+이를 기준으로 train / calibration / test를 나누기 때문에 같은 segment의 정보가 여러 split에 섞이는 **segment leakage**를 방지합니다.
+
+### 5.3 Idle
+
+정상 CSV의 실제 Idle 시간대를 `Idle=1`로 라벨링합니다.
+
+현재 샘플 데이터에서는:
+
+```text
+Normal rows : 20,000
+Idle rows   : 3,049
+```
+
+가 생성되었습니다.
 
 ---
 
-## 6. Step 4~5 — Window Dataset
+## 6. Feature Engineering
 
-`4_make_window_dataset.py`가 공통 window feature를 생성합니다.
-
-최종 파이프라인의 두 시간 스케일:
+최종 window detector는 두 개의 시간 스케일을 사용합니다.
 
 ```text
-Window = 1.0 sec
-Window = 0.5 sec
-Step   = 0.1 sec
+1.0 second window
+0.5 second window
+step = 0.1 second
 ```
 
-각 센서에서 다음 5개 특징을 계산합니다.
+각 센서마다 5개 통계 특징을 계산합니다.
 
 ```text
 Mean
@@ -223,14 +227,19 @@ Peak-to-Peak
 Slope
 ```
 
-따라서:
+3개 센서에서 총 15개:
 
 ```text
 3 sensors × 5 features = 15
-AI0 ↔ AI1 correlation = 1
---------------------------------
-Total = 16 features
 ```
+
+추가로 두 진동 센서의 상관관계:
+
+```text
+AI0 ↔ AI1 correlation = 1
+```
+
+을 사용하여 최종 **16개 window feature**를 구성합니다.
 
 ### 16 Features
 
@@ -256,25 +265,29 @@ AI2_Current_slope
 AI0_AI1_corr
 ```
 
-window feature의 `slope`는 실제 `TimeStamp`를 사용해 초당 변화율을 계산합니다.
+`slope`는 가능한 경우 실제 `TimeStamp`를 사용해 초당 변화율을 계산합니다.
 
 ---
 
-## 7. Anomaly Score — Signed Log + Mahalanobis
+## 7. Anomaly Model
 
-정상 데이터의 다변량 분포를 학습하고 현재 feature가 정상 분포에서 얼마나 멀리 떨어져 있는지 Mahalanobis distance로 계산합니다.
+### 7.1 Signed Log Transform
 
-$$
-D^2(x)=(x-\mu)^T\Sigma^{-1}(x-\mu)
-$$
-
-feature scale 차이와 큰 값의 영향 완화를 위해 다음 변환을 사용합니다.
+feature scale 차이와 큰 값의 영향을 완화하기 위해 다음 변환을 사용합니다.
 
 $$
 x' = sign(x)\log(1+|x|)
 $$
 
-최종 covariance estimator는:
+### 7.2 Ledoit-Wolf Mahalanobis Distance
+
+정상 데이터의 다변량 분포를 학습한 뒤 현재 입력의 정상 분포로부터의 거리를 계산합니다.
+
+$$
+D^2(x)=(x-\mu)^T\Sigma^{-1}(x-\mu)
+$$
+
+최종 배포 모델의 covariance estimator는:
 
 ```text
 Ledoit-Wolf
@@ -282,48 +295,46 @@ Ledoit-Wolf
 
 입니다.
 
-지원하는 offline covariance estimator에는 `Empirical Covariance`, `Ledoit-Wolf`, `OAS`가 있으며, 최종 구성과 streaming detector는 Ledoit-Wolf를 사용합니다.
+Offline 실험 코드에서는 `Empirical Covariance`, `Ledoit-Wolf`, `OAS` 비교도 지원합니다.
 
 ---
 
 ## 8. Window Detector
 
-Window detector의 구조는 다음과 같습니다.
+각 시간 스케일의 구조는 다음과 같습니다.
 
 ```text
-Raw Time Series
-      ↓
-Trailing Window
-      ↓
-16 Features
-      ↓
+Raw samples
+    ↓
+Trailing window
+    ↓
+16 features
+    ↓
 Signed Log1p
-      ↓
+    ↓
 Ledoit-Wolf Mahalanobis
-      ↓
-Normal-only Quantile Threshold
-      ↓
-Window Alarm
+    ↓
+Normal-only calibration threshold
+    ↓
+Window alarm
 ```
 
-최종 배포 detector는:
+최종 detector:
 
 ```text
-0.5s Window = 최근 5 samples
-1.0s Window = 최근 10 samples
+0.5s → 5 samples
+1.0s → 10 samples
 ```
 
-을 사용합니다.
-
-각 window는 **현재 sample까지의 과거 데이터만 사용**하며, 실제 timestamp를 기반으로 slope를 계산합니다. 따라서 미래 sample로 과거의 alarm을 만드는 look-ahead 구조가 아닙니다.
+window는 항상 **현재 sample과 과거 sample만** 사용합니다.
 
 ---
 
 ## 9. Sample-level Detector
 
-`5_3_run_sample_level_mahalanobis.py`와 `core_detector.py`에서는 window 통계 대신 원본 sample 수준에서 anomaly score를 계산합니다.
+window 길이에 의존하지 않는 별도의 detector를 사용합니다.
 
-최종 sample feature는 6개입니다.
+입력 feature:
 
 ```text
 AI0_Vibration
@@ -338,18 +349,14 @@ d_AI2_Current
 즉:
 
 ```text
-Raw sensor value
-+
-First difference
+Raw sensor value + First difference = 6 features
 ```
 
-입니다.
-
-그 다음 최근 3개 sample score의 **causal mean**을 사용합니다.
+raw sample에 Mahalanobis score를 계산한 뒤 최근 3개 score의 causal mean을 사용합니다.
 
 ```text
 t-2 ─┐
-t-1 ─┼─→ mean(3) → sample alarm
+t-1 ─┼─→ mean(3) → Sample Alarm
 t   ─┘
 ```
 
@@ -357,71 +364,78 @@ t   ─┘
 
 ---
 
-## 10. Three-Detector Ensemble
+## 10. Ensemble Logic
 
-최종 detector는 세 개의 서로 다른 시간 관점을 결합합니다.
+최종 detector는 세 가지 시간 관점을 결합합니다.
 
 ```text
-1.0s Window Mahalanobis
-        +
-0.5s Window Mahalanobis
-        +
-Sample-level Mahalanobis
-        ↓
-      OR_3
-        ↓
-Persistence P2
-        ↓
-Final Alarm
+1.0s Window
+      +
+0.5s Window
+      +
+Sample-level
+      ↓
+     OR_3
+      ↓
+      P2
+      ↓
+ Final Alarm
 ```
 
 ### OR_3
 
 세 detector 중 하나라도 alarm이면 후보 alarm을 생성합니다.
 
+```text
+OR_3 = sample_alarm OR win05_alarm OR win1_alarm
+```
+
 ### P2 Persistence
 
-OR_3 후보가 연속 2개 sample에서 유지될 때 최종 alarm으로 확정합니다.
+OR_3 후보가 연속 2개 sample에서 발생할 때 최종 alarm으로 확정합니다.
 
 ```text
 P2 = 2 consecutive OR_3 alarms
 ```
 
-명목 sampling interval이 0.1초이므로 일반적인 연속 sample 기준 추가 확인 간격은 약 0.1초입니다. 실제 timestamp gap이 다른 경우에는 실제 timestamp 차이가 사용됩니다.
+nominal sampling이 0.1초이므로 정상적으로 연속 sample이 들어오는 경우 P2는 약 0.1초의 추가 확인을 요구합니다. 실제 timestamp gap은 detector가 직접 확인합니다.
 
 ---
 
 ## 11. Threshold Calibration
 
-최종 threshold는 fault 데이터가 아니라 **정상 데이터의 calibration score**로 결정합니다.
+최종 threshold는 Fault 데이터로 결정하지 않습니다.
 
-최종 configuration:
+```text
+Normal-only training
+        ↓
+Separate normal calibration groups
+        ↓
+Mahalanobis score
+        ↓
+q = 0.9999
+        ↓
+Threshold
+```
+
+최종 배포 설정:
 
 ```text
 Quantile = 0.9999
 ```
 
-의미는 calibration 정상 score 분포의 상위 0.01% 지점을 threshold로 사용하는 것입니다.
+즉 calibration 정상 score 분포의 상위 tail을 threshold로 사용합니다.
 
-### 학습 / calibration 분리
+### Train / Calibration separation
 
-최종 배포 모델은 다음 순서입니다.
+최종 배포 모델은 다음 정보를 사용합니다.
 
 ```text
-Normal operation
-      ↓
-non-Idle only
-      ↓
-Train / Calibration group split
-      ↓
-Train Mahalanobis model
-      ↓
-Calibration normal scores
-      ↓
-q = 0.9999
-      ↓
-Threshold
+Train rows       : 12,985
+Calibration rows : 3,140
 ```
+
+둘은 group 단위로 분리되며, demo replay에 사용할 그룹도 배포 모델 학습/보정에서 제외합니다.
 
 Fault와 Idle은 threshold calibration에 사용하지 않습니다.
 
@@ -429,28 +443,21 @@ Fault와 Idle은 threshold calibration에 사용하지 않습니다.
 
 ## 12. Final Deployment Configuration
 
-현재 저장소의 `outputs/final_model/model_config.json` 기준 최종 배포 설정은 다음과 같습니다.
+현재 저장된 `outputs/final_model/model_config.json` 기준:
 
-```text
-Gap threshold        : 0.5 sec
-0.5s window size     : 5 samples
-1.0s window size     : 10 samples
-Sample aggregation   : mean, k=3
-Persistence          : P2
-Quantile             : 0.9999
-Covariance           : Ledoit-Wolf
-Seed                 : 0
-Calibration fraction : 0.20
-```
+| Parameter | Value |
+|---|---:|
+| Gap threshold | 0.5 sec |
+| 0.5s window | 5 samples |
+| 1.0s window | 10 samples |
+| Sample aggregation | mean, k=3 |
+| Persistence | P2 |
+| Quantile | 0.9999 |
+| Covariance | Ledoit-Wolf |
+| Seed | 0 |
+| Calibration fraction | 0.20 |
 
-현재 생성된 배포 모델의 train/calibration 규모:
-
-```text
-Train        : 12,985 rows
-Calibration  : 3,140 rows
-```
-
-현재 `outputs/final_model/thresholds.json`에 저장된 threshold는 다음과 같습니다.
+현재 저장된 threshold:
 
 | Detector | Threshold |
 |---|---:|
@@ -458,106 +465,117 @@ Calibration  : 3,140 rows
 | 0.5s Window | 67.50117 |
 | 1.0s Window | 65.52940 |
 
-이 값은 고정된 이론값이 아니라 **현재 데이터와 현재 deployment train/calibration split에서 생성된 calibration 결과**입니다.
+threshold는 데이터와 calibration split에 의해 생성되는 값이므로 모든 데이터셋에서 고정되는 상수는 아닙니다.
 
 ---
 
-## 13. Cross Validation Protocol
+## 13. Cross-Validation Protocol
 
-시계열 특성상 같은 press cycle이 train과 test 양쪽에 들어가면 성능이 부풀려질 수 있습니다. 따라서 `group_id` 단위로 fold를 구성합니다.
+시계열 데이터는 같은 cycle의 유사한 행이 train/test에 섞이면 성능이 과대평가될 수 있습니다.
 
-기본 protocol:
+KAMPact는 다음 **group-aware CV**를 사용합니다.
 
 ```text
 5 folds × 5 repeats
 
 repeat r
-  ↓
-  group shuffle(seed = base_seed + r)
-  ↓
-  fold i = test
-  fold (i+1) mod K = calibration / validation
-  remaining = train
+    ↓
+group shuffle (seed = base + r)
+    ↓
+fold i          → test
+fold (i + 1)%K → calibration / validation
+remaining       → train
 ```
 
-학습은 **non-Idle normal**만 사용합니다.
+학습에는:
 
-Idle은 학습/threshold 산정에서 제외하고 test fold에서 false alarm을 평가합니다.
+```text
+non-Idle normal only
+```
 
-### Final Holdout 관련 주의
+을 사용합니다.
 
-독립적인 미사용 final holdout 데이터가 별도로 제공된 것이 아니므로, 본 프로젝트의 최종 수치는 **독립 holdout 성능이 아니라 group-aware cross-validation 결과**입니다.
+Idle은 학습/threshold 산정에서 제외하고 test 단계에서 false alarm을 평가합니다.
 
-또한 최종 설정은 개발 과정에서 수행한 비교 결과를 참고해 결정했으므로, 그 CV 수치를 완전히 독립적인 confirmatory evaluation으로 해석해서는 안 됩니다.
+### 평가 단위
+
+주요 metric은 다음을 함께 봅니다.
+
+```text
+Event-level:
+  Event Detection Rate
+  Detection Delay
+
+Cycle-level:
+  Normal False Alarm Cycle Rate
+  Idle False Alarm Cycle Rate
+
+Sample-level:
+  F1
+  Precision
+  Recall
+```
 
 ---
 
-## 14. Offline Ensemble Result
+## 14. Offline Ensemble Results
 
-`outputs/6_three_detector_ensemble/ensemble_summary.csv`의 5-fold × 5-repeat 결과입니다.
+`outputs/6_three_detector_ensemble/ensemble_summary.csv`의 5-repeat 결과입니다.
 
 | Configuration | Event Detection | Delay | Sample F1 | Normal FA Cycle | Idle FA Cycle |
 |---|---:|---:|---:|---:|---:|
-| 1.0s Window | 73.33 ± 2.61% | 1.156 ± 0.027s | 0.7422 ± 0.0146 | 0.47 ± 0.22% | 0.00% |
-| 0.5s Window | 76.19 ± 0.00% | 0.776 ± 0.015s | 0.7894 ± 0.0099 | 0.47 ± 0.18% | 0.00% |
-| Sample-level | 85.71 ± 0.00% | 0.571 ± 0.002s | 0.5817 ± 0.0040 | 0.98 ± 0.28% | 0.00% |
-| OR_3 | 99.05 ± 2.13% | 0.470 ± 0.019s | 0.8482 ± 0.0134 | 1.17 ± 0.14% | 0.00% |
-| **OR_3 + P2** | **91.43 ± 2.13%** | **0.571 ± 0.014s** | **0.8300 ± 0.0136** | **0.90 ± 0.11%** | **0.00%** |
-| OR_3 + P3 | 79.05 ± 2.61% | 0.729 ± 0.022s | 0.8109 ± 0.0133 | 0.67 ± 0.18% | 0.00% |
-| 2-of-3 Exact | 71.43 ± 3.37% | 0.897 ± 0.013s | 0.7633 ± 0.0088 | 0.39 ± 0.14% | 0.00% |
-| 2-of-3 Tolerance | 72.38 ± 2.13% | 0.854 ± 0.010s | 0.7764 ± 0.0097 | 0.43 ± 0.16% | 0.00% |
-| OR_3 Sample Corroboration | 81.90 ± 2.13% | 0.776 ± 0.025s | 0.8068 ± 0.0142 | 0.59 ± 0.14% | 0.00% |
+| 1.0s Window | 73.33 ± 2.61% | 1.156 ± 0.027s | 0.7422 | 0.47 ± 0.22% | 0% |
+| 0.5s Window | 76.19 ± 0.00% | 0.776 ± 0.015s | 0.7894 | 0.47 ± 0.18% | 0% |
+| Sample-level | 85.71 ± 0.00% | 0.571 ± 0.002s | 0.5817 | 0.98 ± 0.28% | 0% |
+| OR_3 | 99.05 ± 2.13% | 0.470 ± 0.019s | 0.8482 | 1.17 ± 0.14% | 0% |
+| **OR_3 + P2** | **91.43 ± 2.13%** | **0.571 ± 0.014s** | **0.8300** | **0.90 ± 0.11%** | **0%** |
+| OR_3 + P3 | 79.05 ± 2.61% | 0.729 ± 0.022s | 0.8109 | 0.67 ± 0.18% | 0% |
+| 2-of-3 Exact | 71.43 ± 3.37% | 0.897 ± 0.013s | 0.7633 | 0.39 ± 0.14% | 0% |
 
-`±`는 5개 repeat 결과의 표준편차입니다. confidence interval이나 event 자체의 독립 반복 수를 의미하지 않습니다.
+`±`는 5회 repeat의 표준편차입니다.
+
+이 결과에서 `OR_3`는 빠른 탐지를 제공하는 대신 정상 cycle false alarm이 증가하고, `P2`를 추가하면 탐지율/지연/오탐 사이의 균형점이 형성됩니다.
 
 ---
 
 ## 15. Deployment-aligned Streaming CV
 
-`src/12_streaming_cv.py`는 실제 대시보드의 `StreamingDetector`를 row-by-row로 실행하는 검증 코드입니다.
+offline window 평가만으로는 실제 streaming 동작을 충분히 설명하기 어렵기 때문에 `src/12_streaming_cv.py`에서 **최종 `StreamingDetector` 자체를 row-by-row로 평가**합니다.
 
-즉, offline window dataframe을 미리 계산해 놓고 평가하는 방식과 달리:
+즉:
 
 ```text
-raw row 1
-  ↓
-preprocess
+Raw row 1
   ↓
 detector.step()
   ↓
-raw row 2
+Raw row 2
+  ↓
+detector.step()
   ↓
 ...
 ```
 
-형태로 detector state를 유지하면서 평가합니다.
+형태로 detector의 causal state를 유지합니다.
 
-현재 `q=0.9999` 결과:
+### Final streaming result
+
+`q = 0.9999`, 5-fold × 5-repeat 기준:
 
 | Metric | Mean ± Std |
 |---|---:|
-| Event Detection Rate | **94.29 ± 2.13%** |
-| Detection Delay | **0.524 ± 0.017s** |
+| **Event Detection Rate** | **94.29 ± 2.13%** |
+| **Detection Delay** | **0.524 ± 0.017s** |
 | Sample F1 | 0.8521 |
 | Precision | 0.9444 |
 | Recall | 0.7763 |
-| Normal FA Cycle Rate | **0.90 ± 0.11%** |
-| Idle FA Cycle Rate | 0.00% |
-| Normal FA Episodes | 9.4 / repeat |
+| **Normal FA Cycle Rate** | **0.90 ± 0.11%** |
+| **Idle FA Cycle Rate** | **0.00%** |
+| Normal FA Episodes | 9.4 ± 2.4 / repeat |
 
-Protocol:
+### Threshold sensitivity
 
-```text
-StreamingDetector
-+ normal-only train/calibration
-+ held-out group test
-+ 5 folds × 5 repeats
-+ q = 0.9999
-```
-
-### Threshold Sensitivity
-
-동일한 streaming CV protocol에서 quantile을 변경한 결과입니다.
+동일한 streaming protocol에서 threshold quantile을 변경한 결과:
 
 | Quantile | Event Detection | Delay | F1 | Normal FA Cycle |
 |---:|---:|---:|---:|---:|
@@ -565,284 +583,404 @@ StreamingDetector
 | 0.9950 | 95.24% | 0.449s | 0.8280 | 4.07% |
 | 0.9990 | 95.24% | 0.495s | 0.8507 | 1.64% |
 | 0.9995 | 94.29% | 0.506s | 0.8570 | 1.14% |
-| 0.9999 | 94.29% | 0.524s | 0.8521 | 0.90% |
+| **0.9999** | **94.29%** | **0.524s** | **0.8521** | **0.90%** |
 
-이 표는 quantile이 높아질수록 일반적으로 threshold가 올라가고 false alarm이 감소하는 대신 일부 탐지 기회를 잃거나 delay가 증가할 수 있음을 보여줍니다.
+KAMPact는 현장 적용 관점에서 정상 오탐을 낮추는 것을 중요하게 보고 최종 configuration을 `q=0.9999`로 설정했습니다.
 
 ---
 
 ## 16. Isolation Forest Baseline
 
-`src/7_isolation_forest_baseline.py`는 비교용 비지도 baseline입니다.
+Mahalanobis가 특정 통계 구조에 의존한 결과인지 확인하기 위해 Isolation Forest baseline도 비교합니다.
 
-현재 저장된 baseline 결과:
+### 동일한 streaming-CV protocol에서 `q=0.9999`, `OR_3 + P2`
 
-```text
-F1                    : 0.3898
-Precision             : 1.0000
-Recall                : 0.2421
-Event Detection Rate : 100.0%
-Mean Detection Delay : 1.267s
-Normal FA Rate        : 0.0%
-```
+| Model | Event Detection | Delay | F1 | Normal FA Cycle |
+|---|---:|---:|---:|---:|
+| **Mahalanobis** | **94.29%** | **0.524s** | **0.8521** | 0.90% |
+| Isolation Forest | 76.19% | 0.816s | 0.6344 | **0.51%** |
 
-> 이 baseline은 1.0초 window dataset과 F1-based threshold를 사용하는 별도 protocol입니다. 최종 streaming CV와 동일한 평가 조건으로 직접 비교하는 수치가 아닙니다.
+Isolation Forest는 정상 오탐을 더 낮추는 대신 event detection과 F1이 크게 감소합니다.
+
+별도의 historical baseline(`src/7_isolation_forest_baseline.py`)도 유지하고 있습니다. 해당 결과는 1.0초 window dataset + F1 threshold protocol이므로 streaming-CV 표와 직접 같은 조건은 아닙니다.
 
 ---
 
-## 17. FP / FN Analysis
+## 17. False Positive / False Negative Analysis
 
-`src/8_fp_fn_analysis.py`에서는 최종 ensemble 구성 `OR_3 + P2`를 기준으로 다음을 분석합니다.
+`src/8_fp_fn_analysis.py`는 최종 offline ensemble인 `OR_3 + P2`를 기준으로 오탐/미탐 조건을 분석합니다.
 
-### FP
+### False Positive
 
-정상 운전에서 최종 alarm이 발생한 window를 수집하여 정상 전체와 비교합니다.
-
-주요 산출물:
+현재 분석에서는:
 
 ```text
-outputs/8_fp_fn_analysis/
-├─ fp_windows_1.0s.csv
-├─ fp_feature_summary.csv
-├─ source_detector_fp_windows_1.0s.csv
-├─ fp_window_audit.csv
-├─ fn_event_summary.csv
-├─ fn_duration_summary.csv
-├─ fn_event_repeat_details.csv
-└─ analysis_report.txt
+Unique normal 1.0s windows : 14,341
+FP context windows         : 132
 ```
 
-### FN
-
-fault event별로:
+오경보 구간은 특히 다음 특징에서 큰 차이를 보였습니다.
 
 ```text
-지속시간
-sample 수
-1.0s window 생성 수
-0.5s window 생성 수
-repeat별 탐지 / 미탐 횟수
+AI0_Vibration_mean
+AI0_Vibration_rms
+AI0_Vibration_std
+AI0_Vibration_ptp
+AI1_Vibration_mean
+AI0_AI1_corr
 ```
 
-를 확인합니다.
+예를 들어 FP context의 중앙값은 일부 진동 feature에서 정상보다 크게 나타났습니다.
 
-짧은 fault event는 window 길이 자체 때문에 평가 가능한 window가 충분히 생성되지 않을 수 있습니다. 특히:
+> 이 분석은 descriptive comparison입니다. 특정 feature가 오경보를 **인과적으로 발생시켰다는 의미는 아닙니다.**
+
+### False Negative
+
+21개 fault event 중 대표적인 짧은 event:
 
 ```text
-fault_5  : 3 samples ≈ 0.2 sec
+fault_5  : 3 samples  ≈ 0.2 sec
 fault_19 : 10 samples ≈ 0.9 sec
 ```
 
-와 같이 짧은 event는 window detector와 sample-level detector의 차이를 보여주는 대표 사례입니다.
+분석 결과:
+
+```text
+fault_5  → 5회 repeat 모두 미탐
+fault_19 → 5회 중 1회 탐지
+>= 1.0s event → 16개 event가 모든 repeat에서 탐지
+```
+
+지속시간 구간별 repeat 평가:
+
+| Duration | Events | Detection |
+|---|---:|---:|
+| < 0.5s | 3 | 66.67% |
+| 0.5–<1.0s | 2 | 60.00% |
+| >= 1.0s | 16 | 100.00% |
+
+1.0초 미만 event의 repeat 기준 탐지율은 64.00%입니다.
+
+중요한 점은 짧은 duration만으로 FN의 원인을 단정하지 않는다는 것입니다. 실제 분석에서는 신호 편차와 detector persistence / window 구조를 함께 봅니다.
 
 ---
 
 ## 18. Variable Effect & Interaction Analysis
 
-`src/10_variable_effect_analysis.py`는 탐지 성능에 영향을 주는 변수와 sensor interaction을 확인합니다.
-
-비교 대상:
+`src/10_variable_effect_analysis.py`는 다음 비교를 수행합니다.
 
 ```text
 Normal vs Fault
-Normal vs False Positive context
-Stable Detected vs Any-Miss Fault event
+Normal vs FP Context
+Stable Detected vs Any-Miss Fault Event
 ```
 
-그리고 센서 상관 구조:
+또한:
 
 ```text
-Normal Operation
-Fault
-FP Context
-Any-Miss Fault
+Normal sensor correlation
+Fault sensor correlation
+FP context correlation
+Any-miss fault correlation
 ```
 
-를 비교합니다.
+을 비교합니다.
 
-산출물:
+대표적으로 event-level 비교에서 크게 나타난 변수는:
 
 ```text
-outputs/10_variable_effect_analysis/
-├─ variable_effect_summary.csv
-├─ event_feature_medians.csv
-├─ sensor_correlation_matrix.csv
-├─ feature_coverage_report.csv
-├─ feature_effect_plot.png
-├─ sensor_correlation_heatmap.png
-├─ fn_duration_detection.png
-└─ analysis_report.txt
+AI1_Vibration_slope
+AI2_Current_slope
+AI0_AI1_corr
+AI0_Vibration_rms
+AI2_Current_rms / mean
 ```
+
+등입니다.
+
+이 분석의 목적은 모델 내부 feature importance를 의미하는 것이 아니라 **어떤 신호 변화와 탐지 성공/실패가 함께 나타나는지**를 확인하는 것입니다.
 
 ---
 
-## 19. Real-time / Streaming Design
+## 19. Causal Streaming Design
 
-최종 배포 detector는 `src/core_detector.py`의 `StreamingDetector`입니다.
+최종 배포 엔진은 `src/core_detector.py`의 `StreamingDetector`입니다.
 
-핵심은 **미리 전처리된 window 결과를 읽는 것이 아니라, 들어오는 raw row를 한 행씩 처리한다는 점**입니다.
+핵심 원칙은 **look-ahead 금지**입니다.
 
 ```text
-Raw row
-  ↓
-StreamingPreprocessor.process()
-  ↓
-현재 row 검증
-  ↓
-현재 timestamp와 이전 timestamp 비교
-  ↓
-gap > 0.5 sec 이면 state reset
-  ↓
-StreamingDetector.step()
-  ├─ sample-level raw + diff score
-  ├─ causal mean-3
-  ├─ trailing 0.5s window
-  ├─ trailing 1.0s window
-  ├─ OR_3
-  └─ P2 persistence
-  ↓
+Current raw row
+    ↓
+현재 timestamp / 이전 timestamp 확인
+    ↓
+현재 row 기반 diff
+    ↓
+현재까지의 raw buffer
+    ↓
+현재 시점까지 만들 수 있는 feature
+    ↓
+Sample / 0.5s / 1.0s score
+    ↓
+OR_3
+    ↓
+P2
+    ↓
 Final Alarm
 ```
 
-### No Look-ahead
-
-streaming preprocessing은 현재 row와 이전 timestamp만 사용합니다.
-
-window feature는 detector buffer의 최근 samples로 계산되고, buffer는 현재 시점까지의 값만 보유합니다.
-
-즉 다음 sample이나 미래 fault 정보를 미리 보고 현재 alarm을 만드는 구조가 아닙니다.
-
-### Segment Reset
+### Segment reset
 
 ```text
 gap <= 0.5 sec
-→ 기존 state 유지
+→ 기존 detector state 유지
 
 gap > 0.5 sec
-→ raw/window/sample/persistence state reset
+→ raw/window/sample/P2 history reset
 ```
 
-이는 서로 다른 press cycle의 과거 정보가 새 cycle의 초기 판단에 섞이는 것을 방지합니다.
+이를 통해 이전 press cycle의 history가 새로운 cycle의 초기 판단에 섞이지 않도록 합니다.
+
+### Runtime feature generation
+
+streaming 단계에서는 미리 계산된 `model_windows.csv`를 읽어 alarm을 만드는 것이 아닙니다.
+
+각 row가 다음 과정을 거칩니다.
+
+```text
+raw CSV row
+→ runtime preprocessing
+→ buffer update
+→ causal feature extraction
+→ anomaly score
+→ alarm
+```
 
 ---
 
 ## 20. Full Pipeline Dashboard
 
-`src/11_realtime_dashboard.py`는 프로젝트 전체 과정을 시각적으로 실행하는 최종 entry point입니다.
-
-실행:
+### 실행
 
 ```bash
 python src/11_realtime_dashboard.py
 ```
 
-대시보드 구성:
+대시보드는 크게 두 부분으로 동작합니다.
 
 ```text
-┌───────────────────────────────────────────────────────────────┐
-│ 1) Pipeline Execution                                        │
-│                                                               │
-│ [Stage Board] [Current Stage / Live Log] [Figures / Detail] │
-│                                                               │
-│ 1 → 12 단계가 실제 스크립트 실행과 함께 진행                 │
-│                                                               │
-│                 ↓                                             │
-│       Final model fit + calibration                            │
-│                 ↓                                             │
-│       '실시간 추론 시작'                                      │
-└───────────────────────────────────────────────────────────────┘
+[1] Pipeline Window
 
-                         ↓
+1~11 분석 단계
+        ↓
+12 최종 모델 학습 / calibration
+        ↓
+실시간 추론 시작
 
-┌───────────────────────────────────────────────────────────────┐
-│ 2) Causal Streaming Replay                                   │
-│                                                               │
-│ Raw Sensor Graph                                              │
-│ Detector Score / Threshold                                    │
-│ OR_3 / P2                                                     │
-│ Current State / Segment / Gap                                │
-│ Sample + Window Features                                      │
-│ Detection Delay / Inference Latency                           │
-└───────────────────────────────────────────────────────────────┘
+
+[2] Streaming Window
+
+raw row
+  ↓
+preprocess
+  ↓
+sample / window score
+  ↓
+OR_3
+  ↓
+P2
+  ↓
+Final state
 ```
 
-### Dashboard 실행 순서
+실시간 창에서는 다음 정보를 함께 확인할 수 있습니다.
 
 ```text
-1~3   데이터 이해 / 정리
-4~5   Window dataset 생성
-6~8   Mahalanobis / Ensemble
-9~11  비교·FP/FN·변수 영향 분석
-12    최종 모델 학습 + threshold calibration
-13    raw CSV replay 기반 causal streaming inference
+Raw sensor graph
+Detector score
+Threshold
+Sample / 0.5s / 1.0s alarm
+OR_3
+P2
+Current state
+Segment
+Timestamp gap
+Segment reset
+Feature panel
+Detection delay
+Inference latency
 ```
 
-### 재생 데이터 구성
-
-기본 demo stream은 다음 순서로 연결됩니다.
+기본 내부 demo stream은:
 
 ```text
 normal
-  → idle
-  → normal
-  → fault
+  →
+idle
+  →
+normal
+  →
+fault
 ```
 
-기본 `continuous` 모드에서는 블록 사이 timestamp를 공칭 sample interval 수준으로 이어 붙입니다. 따라서 detector가 block 전환마다 인위적으로 reset되지 않고, 실제 gap 규칙이 적용되는 모습을 확인할 수 있습니다.
+순서로 이어집니다.
 
-`gap` 모드를 사용하면 블록 사이에 0.5초보다 큰 간격을 넣어 reset 동작을 시연할 수 있습니다.
+`continuous` 모드에서는 block 사이 timestamp를 공칭 sample interval 수준으로 이어 붙여 불필요한 reset을 만들지 않습니다.
+
+`gap` 모드에서는 인위적인 `> 0.5 sec` gap을 넣어 reset 동작을 시연할 수 있습니다.
 
 ---
 
-## 21. Dashboard Options
+## 21. External Streaming
 
-기본값으로 전체 pipeline을 실행합니다.
+최종 detector는 저장된 모델을 이용하여 별도의 raw CSV를 직접 스트리밍할 수도 있습니다.
+
+### One-shot external CSV
 
 ```bash
 python src/11_realtime_dashboard.py \
-  --normal-path data/press_data_normal.csv \
-  --fault-path data/outlier_data.csv
+  --stream-path path/to/live_stream.csv
 ```
+
+이 모드에서는:
+
+```text
+1~11 pipeline 실행 생략
+12 최종 모델 재학습 생략
+저장된 outputs/final_model/detector.pkl 로드
+외부 CSV를 row-by-row inference
+```
+
+합니다.
+
+### Required columns
+
+```text
+TimeStamp
+AI0_Vibration
+AI1_Vibration
+AI2_Current
+```
+
+선택 컬럼:
+
+```text
+Equipment_state
+Idle
+```
+
+`Equipment_state`가 있으면 ground truth 기반의 event / false-alarm 지표를 계산할 수 있습니다.
+
+실제 현장 raw stream처럼 `Equipment_state`가 없으면 detector는 **추론만 수행**합니다.
+
+### CSV tail mode
+
+파일에 행이 계속 append되는 상황을 흉내 내기 위해 tail 모드를 지원합니다.
+
+```bash
+python src/11_realtime_dashboard.py \
+  --stream-path path/to/live_stream.csv \
+  --tail
+```
+
+기본 polling interval:
+
+```text
+0.05 sec
+```
+
+완성된 CSV row만 순차적으로 읽으며, 아직 줄바꿈이 끝나지 않은 partial row는 다음 polling에서 이어서 처리합니다.
+
+결과:
+
+```text
+outputs/11_realtime_dashboard/external_stream/
+```
+
+에 저장됩니다.
+
+---
+
+## 22. Dashboard Options
 
 주요 옵션:
 
 | Option | Default | Description |
 |---|---:|---|
-| `--reuse-results` | off | 1~11단계의 기존 산출물을 재사용 |
-| `--skip-heavy-analysis` | off | 9~11단계 생략 |
-| `--quantile` | `0.9999` | 최종 normal-only threshold quantile |
+| `--normal-path` | `data/press_data_normal.csv` | Normal 원본 CSV |
+| `--fault-path` | `data/outlier_data.csv` | Fault 원본 CSV |
+| `--quantile` | `0.9999` | 최종 threshold quantile |
 | `--seed` | `0` | 배포 모델 seed |
-| `--calibration-fraction` | `0.20` | 정상 segment 중 calibration 비율 |
-| `--replay-speed` | `1.0` | 실제 timestamp 대비 replay 배속 |
-| `--fps` | auto | replay 행/초를 직접 지정 |
-| `--demo-join-mode` | `continuous` | `continuous` 또는 `gap` |
-| `--demo-join-gap` | `2.0` | `gap` 모드의 블록 사이 간격 |
-| `--auto-start` | `0` | pipeline 완료 후 streaming 창 자동 이동까지의 초 |
-| `--plot-window` | `150` | 실시간 그래프에 표시할 최근 points |
+| `--calibration-fraction` | `0.20` | normal group 중 calibration 비율 |
+| `--replay-speed` | `1.0` | demo replay 배속 |
+| `--fps` | auto | replay 행/초 직접 지정 |
+| `--demo-join-mode` | `continuous` | `continuous` / `gap` |
+| `--demo-join-gap` | `2.0` | gap 모드의 block 간 간격 |
+| `--plot-window` | `150` | 실시간 그래프 표시 points |
 | `--feature-update-every` | `3` | feature panel 갱신 주기 |
-| `--axis-update-every` | `5` | 축 자동조정 주기 |
+| `--axis-update-every` | `5` | 축 자동 조정 주기 |
+| `--reuse-results` | off | 기존 1~11 산출물 재사용 |
+| `--skip-heavy-analysis` | off | Stage 9~11 생략 |
+| `--stream-path` | none | 외부 raw CSV |
+| `--tail` | off | 외부 CSV append 감시 |
+| `--tail-poll-interval` | `0.05` | tail polling interval |
 
 예:
 
 ```bash
-# 기존 1~11 산출물을 활용하고 최종 모델/streaming만 빠르게 확인
+# 전체 pipeline
+python src/11_realtime_dashboard.py
+
+# 기존 산출물 재사용
 python src/11_realtime_dashboard.py --reuse-results
 
-# 무거운 9~11단계 생략
+# 무거운 FP/FN·시각화 단계 생략
 python src/11_realtime_dashboard.py --skip-heavy-analysis
 
-# 데이터 시간의 5배 속도로 streaming replay
+# 5배 빠르게 demo replay
 python src/11_realtime_dashboard.py --replay-speed 5
 
-# block 사이를 큰 gap으로 만들고 reset 동작 확인
-python src/11_realtime_dashboard.py --demo-join-mode gap --demo-join-gap 2
+# gap reset 동작 시연
+python src/11_realtime_dashboard.py \
+  --demo-join-mode gap \
+  --demo-join-gap 2
+
+# 저장 모델로 외부 CSV 추론
+python src/11_realtime_dashboard.py \
+  --stream-path path/to/live_stream.csv
+
+# 외부 CSV append 감시
+python src/11_realtime_dashboard.py \
+  --stream-path path/to/live_stream.csv \
+  --tail
 ```
 
 ---
 
-## 22. Dashboard Outputs
+## 23. Output Artifacts
 
-실행 결과는 `outputs/11_realtime_dashboard/`에 저장됩니다.
+### Final model
+
+```text
+outputs/final_model/
+├─ detector.pkl
+├─ model_config.json
+└─ thresholds.json
+```
+
+`model_config.json`에는 다음 재현성 정보가 기록됩니다.
+
+```text
+Python version
+NumPy / Pandas / scikit-learn version
+Git commit
+input file hash
+train rows
+calibration rows
+seed
+quantile
+```
+
+### Dashboard
 
 ```text
 outputs/11_realtime_dashboard/
@@ -851,221 +989,176 @@ outputs/11_realtime_dashboard/
 ├─ pipeline_dashboard.png
 ├─ stage_timing.json
 ├─ stage_markers/
-│  ├─ stage_1.json ... stage_13.json
-│
 ├─ realtime_log.csv
 ├─ realtime_metrics.csv
 └─ realtime_event_summary.csv
 ```
 
-### `realtime_log.csv`
-
-한 row씩 streaming된 결과를 기록합니다.
-
-대표 컬럼:
+### Streaming CV
 
 ```text
-TimeStamp
-orig_TimeStamp
-AI0_Vibration
-AI1_Vibration
-AI2_Current
-segment_id
-segment_reset
-gap_seconds
-score_0.5s
-threshold_0.5s
-alarm_0.5s
-score_1.0s
-threshold_1.0s
-alarm_1.0s
-sample_score
-sample_threshold
-sample_alarm
-OR_3
-P2
-state
-infer_ms
+outputs/12_streaming_cv/
+├─ q_0.99/
+├─ q_0.995/
+├─ q_0.999/
+├─ q_0.9995/
+└─ q_0.9999/
 ```
 
-### `realtime_metrics.csv`
-
-streaming 실행에서 다음을 요약합니다.
+각 quantile 폴더에서 주요 결과:
 
 ```text
-fault event detection rate
-first detection delay
-normal false alarm
-idle false alarm
-fault frame recall
-inference latency mean / p95 / max
+streaming_cv_summary.csv
+streaming_cv_repeat_metrics.csv
+streaming_cv_fold_metrics.csv
+streaming_cv_thresholds.csv
+streaming_cv_event_details.csv
 ```
 
-### `pipeline_stage_report.csv`
-
-각 단계의 상태·소요시간·결과 요약을 기록합니다.
-
-따라서 대시보드가 단순 시각화 프로그램이 아니라:
+### Analysis outputs
 
 ```text
-전처리
-→ 모델링
-→ 학습
-→ calibration
-→ 추론
-→ 결과 생성
+outputs/
+├─ 5_2_mahalanobis_cv/
+├─ 5_3_sample_level_cv/
+├─ 6_three_detector_ensemble/
+├─ 7_isolation_forest_baseline/
+├─ 7_2_isolation_forest_streaming_cv/
+├─ 7_3_delay_analysis/
+├─ 8_fp_fn_analysis/
+├─ 9_fn_visualization/
+├─ 10_variable_effect_analysis/
+├─ 11_realtime_dashboard/
+└─ final_model/
 ```
-
-전체 과정을 보여주는 실행형 프로젝트 데모 역할을 합니다.
 
 ---
 
-## 23. Example Streaming Run
+## 24. Detection Delay Definition
 
-현재 저장소에는 실제 dashboard replay에서 생성된 예시 산출물도 포함되어 있습니다.
-
-예시 실행 로그에서는:
+delay는 다음 기준으로 계산합니다.
 
 ```text
-Streaming rows           : 1,451
-Fault events             : 1
-Event detection          : 1 / 1
-Detection delay          : 0.100 sec
-Normal false alarm frame : 1
-Idle false alarm frame   : 0
-Mean inference latency   : 2.561 ms
-P95 inference latency    : 3.157 ms
-Max inference latency    : 3.649 ms
+Fault segment first timestamp
+            ↓
+First final alarm timestamp
+            ↓
+Detection delay
 ```
 
-가 기록되었습니다.
+중요한 한계:
 
-> 이 수치는 **1개 fault event를 포함한 특정 dashboard replay 사례**이며, 최종 성능 benchmark로 사용하지 않습니다. 일반화된 성능은 `outputs/12_streaming_cv/`의 group-aware streaming CV 결과를 기준으로 봅니다.
+현재 Fault CSV는 Fault 구간 전체가 `Equipment_state=1`이므로 데이터만으로 실제 물리적 고장 발생 순간을 구분할 수 없습니다.
 
-또한 dashboard의 `replay 경과`는 UI에서 데이터를 재생하는 데 걸린 wall-clock 시간이고, `infer_ms`는 한 행의 전처리+특징+탐지 처리에 걸린 추론 측정값입니다. 두 시간은 같은 의미가 아닙니다.
-
----
-
-## 24. Detection Delay
-
-delay는 event별로 다음과 같이 계산합니다.
+따라서 현재 delay는:
 
 ```text
-fault segment first timestamp
-          ↓
-      first final alarm
-          ↓
-       delay_sec
+"실제 물리 고장 발생 후 지연"
 ```
 
-### Sample-level
+이 아니라:
 
-현재 sample에서 최종 alarm이 발생하면 해당 sample timestamp를 최초 alarm 시점으로 사용합니다.
+```text
+"fault segment 시작 시점 이후 첫 final alarm까지의 시간"
+```
 
-### Window-level
+입니다.
 
-trailing window는 현재 sample까지의 데이터를 사용하므로, 해당 window가 끝나는 현재 timestamp에서 alarm 여부를 계산합니다.
+### Missed event
 
-### Missed Event
-
-탐지하지 못한 event는:
+탐지 실패 event는:
 
 ```text
 delay = NaN
 ```
 
-으로 처리하며 탐지된 event의 평균 delay에 포함하지 않습니다.
+이며 탐지된 event의 평균 delay에는 포함하지 않습니다.
 
-따라서 **탐지율이 다른 detector의 평균 delay는 동일한 event 집합을 기반으로 하지 않을 수 있습니다.**
+따라서 detector마다 탐지된 event 집합이 다르면 평균 delay를 동일한 event subset의 비교로 해석하면 안 됩니다.
 
 ---
 
 ## 25. Short Fault Events
 
-원본 nominal sampling interval이 0.1초이므로:
+nominal sampling interval이 0.1초이므로:
 
 ```text
-3 samples  → 첫 sample ~ 마지막 sample ≈ 0.2 sec
-10 samples → 첫 sample ~ 마지막 sample ≈ 0.9 sec
+3 samples  → 첫~마지막 timestamp 약 0.2 sec
+10 samples → 첫~마지막 timestamp 약 0.9 sec
 ```
 
 입니다.
 
-예를 들어:
+따라서 매우 짧은 Fault는 긴 window detector가 충분한 sample을 확보하기 전에 끝날 수 있습니다.
+
+이 때문에 KAMPact는:
 
 ```text
-fault_5  = 3 samples ≈ 0.2 sec
-fault_19 = 10 samples ≈ 0.9 sec
-```
-
-처럼 짧은 event는 1.0초 window가 충분히 만들어지지 않을 수 있습니다.
-
-이 문제 때문에 KAMPact는:
-
-```text
-window detector
+Window detector
 +
-sample-level detector
+Sample-level detector
 ```
 
-를 함께 사용합니다. sample-level detector는 window 길이에 관계없이 raw sample에서 바로 score를 계산할 수 있습니다.
+를 함께 사용합니다.
+
+sample-level detector는 window가 완전히 채워지지 않은 짧은 event에서도 raw sample 기준 score를 계산할 수 있습니다.
+
+또한 최종 `P2`는 너무 짧은 이상 pulse가 바로 최종 alarm으로 확정되는 것을 일부 억제합니다.
 
 ---
 
 ## 26. Reproducibility
 
-최종 배포 모델에는 다음 정보가 함께 저장됩니다.
+권장 환경:
 
 ```text
-outputs/final_model/model_config.json
-outputs/final_model/thresholds.json
-outputs/final_model/detector.pkl
+Python 3.11.x
 ```
 
-`model_config.json`에는 다음 재현성 정보가 포함됩니다.
+현재 dependency 범위:
 
 ```text
-Python version
-NumPy version
-Pandas version
-scikit-learn version
-git commit
-input file hash
-train rows
-calibration rows
-quantile
-seed
+numpy        >=2.0,<3
+pandas       >=2.2,<4
+scikit-learn >=1.4,<2
+matplotlib   >=3.8,<4
+tqdm         >=4.66,<5
 ```
 
-현재 저장된 deployment metadata의 예:
+최종 저장 모델이 생성된 환경 기록:
 
 ```text
 Python        : 3.11.9
 NumPy         : 2.4.6
 Pandas        : 3.0.6
 scikit-learn : 1.9.1
-Git commit    : a06913f
 ```
 
-입력 CSV의 일부 hash도 함께 저장되므로 다른 파일로 모델이 생성되었는지 확인할 수 있습니다.
+### Artifact note
+
+현재 `outputs/final_model/model_config.json`에 저장된 모델 metadata는:
+
+```text
+code_commit : fe23345
+created_at  : 2026-10-07T23:08:46
+```
+
+을 기록하고 있습니다.
+
+현재 `main`의 HEAD는 이후 `0ab8fa3`으로 이동했으며, 이 최신 변경에는 **external CSV tail streaming** 기능이 추가되었습니다.
+
+따라서 코드와 저장 모델의 metadata까지 현재 HEAD에 완전히 맞추려면 전체 pipeline을 다시 실행하여 `outputs/final_model/`을 재생성하는 것이 가장 재현성 높은 방법입니다.
 
 ---
 
 ## 27. Installation
-
-권장 Python 버전:
-
-```text
-Python 3.11.x
-```
-
-가상환경 생성:
 
 ### Windows
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
+
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
@@ -1075,225 +1168,293 @@ pip install -r requirements.txt
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-대시보드는 Matplotlib의 interactive GUI를 사용하므로 데스크톱 환경에서 실행하는 것을 전제로 합니다.
+대시보드는 Matplotlib interactive GUI를 사용하므로 일반적인 데스크톱 Python 환경에서 실행하는 것을 권장합니다.
 
 ---
 
-## 28. Data Setup
+## 28. Quick Start
 
-원본 데이터는 직접 `data/`에 배치합니다.
-
-```text
-data/
-├─ press_data_normal.csv
-└─ outlier_data.csv
-```
-
-그 뒤:
+가장 간단한 실행:
 
 ```bash
 python src/11_realtime_dashboard.py
 ```
 
-를 실행하면 Step 2에서:
+이 한 번의 실행으로:
 
 ```text
-data/press_data_normal_with_idle.csv
+원본 분석
+→ Idle labeling
+→ Segment analysis
+→ Window feature 생성
+→ Window Mahalanobis CV
+→ Sample-level Mahalanobis CV
+→ Ensemble
+→ Isolation Forest baseline
+→ FP/FN 분석
+→ Variable effect 분석
+→ 최종 모델 학습 / calibration
+→ 저장 model 생성
+→ causal streaming replay
 ```
 
-가 생성되고 이후 단계가 이어집니다.
+까지 연결됩니다.
 
 ---
 
-## 29. Individual Script Execution
+## 29. Individual Scripts
 
-전체 대시보드가 아니라 각 단계만 실행할 수도 있습니다.
+### Step 1–3
 
 ```bash
-# 1. Raw visualization
 python src/1_visualize_normal_outlier.py
-
-# 2. Idle labeling
 python src/2_Classification_idle_sections.py
-
-# 3. Time structure / segment analysis
 python src/3_time_structure_analysis.py
+```
 
-# 4. 1.0s window dataset
-python src/4_make_window_dataset.py --window-sec 1.0 --step-sec 0.1 --output-dir result/modeling_dataset_1.0_0.1
+### Step 4–5: Window dataset
 
-# 5. 0.5s window dataset
-python src/4_make_window_dataset.py --window-sec 0.5 --step-sec 0.1 --output-dir result/modeling_dataset_0.5_0.1
+```bash
+python src/4_make_window_dataset.py \
+  --window-sec 1.0 \
+  --step-sec 0.1 \
+  --output-dir result/modeling_dataset_1.0_0.1
 
-# 6. Window Mahalanobis CV
-python src/5_2_run_mahalanobis.py --multiscale result/modeling_dataset_1.0_0.1 result/modeling_dataset_0.5_0.1
+python src/4_make_window_dataset.py \
+  --window-sec 0.5 \
+  --step-sec 0.1 \
+  --output-dir result/modeling_dataset_0.5_0.1
+```
 
-# 7. Sample-level Mahalanobis CV
+### Step 6: Window Mahalanobis CV
+
+```bash
+python src/5_2_run_mahalanobis.py \
+  --multiscale \
+  result/modeling_dataset_1.0_0.1 \
+  result/modeling_dataset_0.5_0.1
+```
+
+### Step 7: Sample-level Mahalanobis CV
+
+```bash
 python src/5_3_run_sample_level_mahalanobis.py \
   --normal-path data/press_data_normal_with_idle.csv \
   --fault-path data/outlier_data.csv
+```
 
-# 8. Three-detector ensemble
+### Step 8: Ensemble
+
+```bash
 python src/6_compare_three_detectors.py \
   --normal-path data/press_data_normal_with_idle.csv \
   --fault-path data/outlier_data.csv \
   --window-1.0 result/modeling_dataset_1.0_0.1 \
   --window-0.5 result/modeling_dataset_0.5_0.1
+```
 
-# 9. Isolation Forest baseline
+### Step 9: Isolation Forest baseline
+
+```bash
 python src/7_isolation_forest_baseline.py
+```
 
-# 10. FP / FN analysis
+### Step 10–11: FP/FN + variable analysis
+
+```bash
 python src/8_fp_fn_analysis.py
 
-# 11. FN visualization + variable effect analysis
 python src/9_visualize_fn_events.py
 python src/10_variable_effect_analysis.py
+```
 
-# 12. Deployment-aligned streaming CV
+### Streaming CV
+
+```bash
 python src/12_streaming_cv.py \
   --normal-path data/press_data_normal_with_idle.csv \
   --fault-path data/outlier_data.csv \
   --quantile 0.9999
 ```
 
-세부 인자는 각 스크립트의 `--help`를 확인합니다.
+모든 스크립트는 세부 인자를 `--help`로 확인할 수 있습니다.
 
 ---
 
-## 30. Current Final Flow
-
-KAMPact의 최종 사용 흐름을 하나로 요약하면 다음과 같습니다.
+## 30. Repository Structure
 
 ```text
-[Raw CSV]
-    │
-    ├─ Normal
-    └─ Fault
-    │
-    ▼
-[Data preprocessing]
-    ├─ timestamp validation
-    ├─ gap / segment
-    └─ Idle classification
-    │
-    ▼
-[Feature engineering]
-    ├─ 1.0s window / 16 features
-    ├─ 0.5s window / 16 features
-    └─ sample raw + diff / 6 features
-    │
-    ▼
-[Anomaly modeling]
-    ├─ Ledoit-Wolf Mahalanobis
-    ├─ normal-only calibration
-    └─ q = 0.9999
-    │
-    ▼
-[Ensemble]
-    ├─ sample-level
-    ├─ 0.5s window
-    ├─ 1.0s window
-    ├─ OR_3
-    └─ P2
-    │
-    ▼
-[Analysis]
-    ├─ event detection
-    ├─ detection delay
-    ├─ normal / idle false alarm
-    ├─ FP / FN
-    └─ variable effect / interaction
-    │
-    ▼
-[Deployment]
-    ├─ StreamingPreprocessor
-    ├─ StreamingDetector.step()
-    ├─ causal state
-    └─ row-by-row alarm
+KAMPact/
+├─ data/
+│  └─ .gitkeep
+│
+├─ result/
+│  └─ visualize_normal_outlier/
+│
+├─ outputs/
+│  ├─ 5_2_mahalanobis_cv/
+│  ├─ 5_3_sample_level_cv/
+│  ├─ 6_three_detector_ensemble/
+│  ├─ 7_2_isolation_forest_streaming_cv/
+│  ├─ 7_3_delay_analysis/
+│  ├─ 7_isolation_forest_baseline/
+│  ├─ 8_fp_fn_analysis/
+│  ├─ 9_fn_visualization/
+│  ├─ 10_variable_effect_analysis/
+│  ├─ 11_realtime_dashboard/
+│  ├─ 12_streaming_cv/
+│  └─ final_model/
+│
+├─ src/
+│  ├─ 1_visualize_normal_outlier.py
+│  ├─ 2_Classification_idle_sections.py
+│  ├─ 3_time_structure_analysis.py
+│  ├─ 4_make_window_dataset.py
+│  ├─ 5_run_mahalanobis.py
+│  ├─ 5_2_run_mahalanobis.py
+│  ├─ 5_3_run_sample_level_mahalanobis.py
+│  ├─ 6_compare_three_detectors.py
+│  ├─ 7_isolation_forest_baseline.py
+│  ├─ 7_2_isolation_forest_streaming_cv.py
+│  ├─ 7_3_delay_analysis.py
+│  ├─ 8_fp_fn_analysis.py
+│  ├─ 9_visualize_fn_events.py
+│  ├─ 10_variable_effect_analysis.py
+│  ├─ 11_realtime_dashboard.py
+│  ├─ 12_streaming_cv.py
+│  ├─ core_detector.py
+│  └─ dashboard_stage_monitor.py
+│
+├─ requirements.txt
+├─ .gitignore
+├─ LICENSE
+└─ README.md
 ```
+
+`result/`의 CSV와 `data/`의 원본 CSV는 `.gitignore`에 의해 기본적으로 추적하지 않습니다.
 
 ---
 
-## 31. Important Limitations
+## 31. Script Roles
 
-1. **Physical fault onset timestamp 부재**
-   - delay는 데이터상 fault segment 시작점 기준입니다.
-
-2. **독립 final holdout 부재**
-   - 최종 성능은 group-aware 5-fold × 5-repeat CV 기반입니다.
-
-3. **Threshold 선택과 최종 구성 선택의 개발 데이터 의존성**
-   - 동일 데이터의 CV 결과를 개발 과정에서 참고했기 때문에 완전한 독립 검증으로 볼 수 없습니다.
-
-4. **Idle 구간의 의미**
-   - Idle은 정상 운전의 한 형태로 볼 수도 있지만, 본 프로젝트에서는 학습에서 제외하고 false alarm 평가 대상으로 별도 취급합니다.
-
-5. **짧은 fault event**
-   - 매우 짧은 event는 긴 window detector에서 정보가 부족할 수 있으므로 sample-level detector를 함께 둡니다.
-
-6. **입력 데이터의 시간 간격**
-   - 명목 간격은 0.1초이지만 실제 timestamp는 완전히 균일하지 않을 수 있습니다. delay와 slope는 가능한 경우 실제 timestamp를 사용합니다.
+| File | Role |
+|---|---|
+| `1_visualize_normal_outlier.py` | 정상/고장 원본 시계열 시각화 |
+| `2_Classification_idle_sections.py` | 정상 CSV의 Idle 라벨 생성 |
+| `3_time_structure_analysis.py` | timestamp gap / segment 분석 |
+| `4_make_window_dataset.py` | 0.5s / 1.0s window feature dataset 생성 |
+| `5_run_mahalanobis.py` | 초기/단일 스케일 Mahalanobis 구현 |
+| `5_2_run_mahalanobis.py` | 최종 window CV / multi-scale 평가 |
+| `5_3_run_sample_level_mahalanobis.py` | sample-level Mahalanobis CV |
+| `6_compare_three_detectors.py` | 3 detector ensemble 비교 |
+| `7_isolation_forest_baseline.py` | historical Isolation Forest baseline |
+| `7_2_isolation_forest_streaming_cv.py` | streaming protocol 기반 IF 비교 |
+| `7_3_delay_analysis.py` | event별 delay 분해 분석 |
+| `8_fp_fn_analysis.py` | FP/FN 조건 분석 |
+| `9_visualize_fn_events.py` | FN event 시각화 |
+| `10_variable_effect_analysis.py` | feature / interaction 분석 |
+| `11_realtime_dashboard.py` | full pipeline + 최종 모델 + streaming UI |
+| `12_streaming_cv.py` | deployment-aligned streaming CV |
+| `core_detector.py` | 최종 causal detector engine |
+| `dashboard_stage_monitor.py` | pipeline 실행 현황/로그/시각화 UI 지원 |
 
 ---
 
-## 32. Recommended Entry Point
+## 32. Limitations
 
-프로젝트 전체 흐름을 한 번에 확인하려면 다음 하나만 실행하면 됩니다.
+### 32.1 Physical fault onset
 
-```bash
-python src/11_realtime_dashboard.py
-```
+현재 Fault 데이터의 `Equipment_state`는 Fault segment 전체에서 1이므로 실제 물리적인 고장 발생 순간은 별도로 알 수 없습니다.
 
-이 명령이:
+따라서 delay는 데이터상 fault segment onset 기준입니다.
+
+### 32.2 Independent final holdout
+
+독립적으로 한 번도 사용하지 않은 final holdout 데이터가 별도로 제공된 상태가 아닙니다.
+
+따라서 최종 성능은 **group-aware CV 기반의 개발 검증 결과**로 해석해야 합니다.
+
+### 32.3 Model selection dependence
+
+threshold와 최종 ensemble 구성은 개발 과정의 여러 CV 결과를 참고하여 결정되었습니다.
+
+따라서 본 프로젝트의 CV 결과를 완전히 독립적인 confirmatory evaluation으로 해석하면 안 됩니다.
+
+### 32.4 Idle interpretation
+
+Idle을 정상 상태의 일부로 볼 수도 있지만, 본 프로젝트에서는 운전 정상과 분리된 분포로 보고 training/calibration에서 제외하며 false alarm을 별도 평가합니다.
+
+### 32.5 Short fault events
+
+매우 짧은 Fault event는 window detector가 충분한 sample을 확보하기 전에 종료될 수 있습니다.
+
+### 32.6 Timestamp irregularity
+
+nominal sampling interval은 0.1초이지만 실제 timestamp가 완전히 균일하지 않을 수 있습니다.
+
+KAMPact는:
 
 ```text
-데이터 전처리
-→ feature 생성
-→ 모델 학습 / CV
-→ threshold calibration
-→ ensemble 분석
-→ FP/FN 분석
-→ 최종 모델 저장
-→ causal streaming inference
-→ 결과 CSV / 보고서 생성
+gap
+delay
+slope
 ```
 
-전체 과정을 하나의 실행형 데모로 연결합니다.
+등에서 가능한 경우 실제 `TimeStamp`를 사용합니다.
 
 ---
 
 ## 33. Project Status
 
-현재 저장소에는 다음 최종 흐름이 구현되어 있습니다.
+현재 저장소에 구현된 주요 항목:
 
 ```text
-Analysis
-  ✓
-Window modeling
-  ✓
-Sample-level modeling
-  ✓
-Three-detector ensemble
-  ✓
-Isolation Forest baseline
-  ✓
-FP / FN analysis
-  ✓
-Variable effect analysis
-  ✓
-Final deployment model
-  ✓
-Causal streaming detector
-  ✓
-End-to-end dashboard
-  ✓
-Deployment-aligned streaming CV
-  ✓
+✓ Raw time-series analysis
+✓ Idle classification
+✓ Segment-aware preprocessing
+✓ 1.0s / 0.5s window modeling
+✓ 16-feature window detector
+✓ Sample-level detector
+✓ Ledoit-Wolf Mahalanobis
+✓ OR_3 + P2 ensemble
+✓ Isolation Forest baseline
+✓ FP / FN analysis
+✓ Variable effect / interaction analysis
+✓ Final deployment model
+✓ Causal row-by-row streaming detector
+✓ End-to-end dashboard
+✓ Deployment-aligned 5-fold × 5-repeat streaming CV
+✓ External CSV replay
+✓ External CSV tail streaming
 ```
 
-KAMPact는 **오프라인 분석 결과를 보여주는 프로젝트**에서 끝나지 않고, 최종 모델이 실제 입력 row를 한 개씩 받아 전처리·특징 추출·이상 점수 계산·알람 결정을 수행하는 **causal streaming 구조**까지 연결하는 것을 최종 목표로 합니다.
+KAMPact의 최종 형태는 단순한 오프라인 anomaly score 계산이 아니라,
+
+```text
+Raw Sensor Input
+      ↓
+Runtime Preprocessing
+      ↓
+Feature Extraction
+      ↓
+Anomaly Scoring
+      ↓
+Multi-scale Ensemble
+      ↓
+Persistence
+      ↓
+Final Alarm
+```
+
+을 실제 입력 흐름 그대로 수행하는 **causal streaming anomaly detection system**입니다.
+
+---
+
+## 34. License
+
+This project is released under the [MIT License](LICENSE).
